@@ -15,7 +15,7 @@ Pingpong is an MCP (Model Context Protocol) server that provides automated code 
 |---|---|---|
 | Reviewer | Human via web UI | Local LLM (llama.cpp) |
 | Review Trigger | Every request | Every request |
-| Escalation | N/A (always human) | After 5 iterations or LLM error |
+| Escalation | N/A (always human) | After 5 completed iterations (escalates on 6th call) or LLM error
 | Context | Summary only | Summary + PRD + git diff + conversation history |
 | Web UI | Always running (port 3456) | Only during escalation |
 
@@ -36,7 +36,7 @@ Pingpong provides an MCP tool `request_review` that:
 3. Sends comprehensive context to local LLM (llama.cpp on port 8080)
 4. Receives structured feedback (STATUS: approved/needs_revision)
 5. Returns feedback to agent for iteration
-6. Escalates to human after 5 iterations or on LLM errors
+6. Escalates to human after 5 completed iterations (on the 6th request_review call) or on LLM errors
 
 ### Benefits
 
@@ -598,6 +598,84 @@ When escalation occurs:
 6. Resolve agent's request_review call with feedback
 7. Agent continues work
 
+**Escalation Web UI Structure:**
+
+The web UI should display (similar to copilot-leecher):
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>Pingpong Review - {sessionId}</title></head>
+<body>
+  <div class="container">
+    <h1>🏓 Pingpong Review Escalation</h1>
+    <div class="session-info">
+      <h2>Session: {taskId}</h2>
+      <p><strong>Status:</strong> Escalated (5 iterations completed)</p>
+      <p><strong>Created:</strong> {timestamp}</p>
+    </div>
+
+    <div class="task-summary">
+      <h3>Task Summary</h3>
+      <p>{summary}</p>
+      {if details}<p><strong>Details:</strong> {details}</p>{endif}
+    </div>
+
+    <div class="feedback-history">
+      <h3>Review Feedback History ({iterationCount} iterations)</h3>
+      {foreach iteration in feedbackLoop}
+      <div class="iteration">
+        <h4>Iteration {iteration.number} - {iteration.reviewerType}</h4>
+        <p><strong>Status:</strong> {iteration.status}</p>
+        <p><strong>Feedback:</strong> {iteration.feedback}</p>
+        <p><em>{timestamp}</em></p>
+      </div>
+      {endforeach}
+    </div>
+
+    <div class="context-preview">
+      <h3>Context</h3>
+      <details>
+        <summary>PRD ({prdPath})</summary>
+        <pre>{prdContent}</pre>
+      </details>
+      <details>
+        <summary>Git Diff ({gitDiffLength} bytes)</summary>
+        <pre>{gitDiffContent}</pre>
+      </details>
+      {if conversationHistory}
+      <details>
+        <summary>Conversation History</summary>
+        <pre>{conversationHistory}</pre>
+      </details>
+      {endif}
+    </div>
+
+    <div class="human-feedback">
+      <h3>Human Review Required</h3>
+      <p>Local LLM reached maximum iterations (5). Please review and provide feedback:</p>
+      <form id="feedbackForm">
+        <textarea name="feedback" rows="6" cols="80"
+                  placeholder="Enter your feedback here... Type 'ok', 'approved', or 'lgtm' to approve the work."></textarea>
+        <div class="quick-actions">
+          <button type="button" data-quick="ok">✅ Approve (ok)</button>
+          <button type="button" data-quick="approved">✅ Approve (approved)</button>
+          <button type="button" data-quick="lgtm">✅ Approve (lgtm)</button>
+        </div>
+        <button type="submit">Submit Feedback</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
+```
+
+**Form Behavior:**
+- Quick action buttons pre-fill the textarea with 'ok', 'approved', or 'lgtm'
+- On submit: POST to `/api/sessions/{sessionId}/feedback` with `{feedback: string}`
+- After successful submission: Show confirmation "Feedback submitted. Agent will continue."
+- Page auto-refreshes every 30 seconds to check for session updates
+
 ## Logging
 
 **Log Levels:**
@@ -638,7 +716,55 @@ interface ReviewSession {
 }
 ```
 
-**Session Lifecycle:**
+**Session Lifecycle & State Transitions:**
+
+**1. Initial Creation**
+- Agent calls `request_review` → session created with:
+  - `status: 'pending'`
+  - `iterationCount: 0`
+  - `createdAt: Date.now()`
+
+**2. LLM Review (Iteration N, where N ≤ 5)**
+- Pingpong sends context to LLM
+- On response:
+  - If `STATUS: approved` → `status: 'approved'`, `reviewerType: 'llm'`, session complete
+  - If `STATUS: needs_revision` → `status: 'needs_revision'`, `reviewerType: 'llm'`, `feedback` set
+
+**3. Agent Receives Feedback**
+- Agent receives tool result with `status` and `feedback`
+- `iterationCount` increments (N → N+1)
+- If `status: 'approved'` → agent stops, task complete
+- If `status: 'needs_revision'` → agent improves work, calls `request_review` again
+
+**4. Escalation (Iteration N = 6, or LLM error after retry)**
+- On 6th `request_review` call (after 5 completed iterations):
+  - `status: 'escalated'`
+  - Escalation server starts on port 3456
+  - Browser auto-opens to web UI
+- Or, if LLM fails after 1 retry:
+  - `status: 'escalated'`
+  - Escalation server starts
+
+**5. Human Review (During Escalation)**
+- Human reviews session via web UI
+- On human feedback submission:
+  - If human types `ok`, `approved`, or `lgtm` → `status: 'approved'`, `reviewerType: 'human'`
+  - Otherwise → `status: 'needs_revision'`, `reviewerType: 'human'`, `feedback` set
+
+**6. Post-Escalation Agent Iteration**
+- Agent receives human feedback as tool result
+- `iterationCount` does NOT increment (human escalation resets iteration limit)
+- If `status: 'approved'` → agent stops, task complete
+- If `status: 'needs_revision'` → agent improves work, calls `request_review` again
+- Note: Subsequent `request_review` calls restart at step 2 (LLM reviews again)
+
+**7. Session Completion**
+- Session marked complete when `status: 'approved'`
+- No further `request_review` calls allowed for this `sessionId`
+
+**8. Cleanup**
+- Sessions older than 24 hours deleted automatically
+- Cleanup runs hourly via `setInterval`
 1. Agent calls `request_review` → session created (status: pending)
 2. LLM reviews → status updated (approved/needs_revision)
 3. Agent receives feedback → iteration count increments
@@ -685,8 +811,14 @@ interface ReviewSession {
 
 ### Git Diff Performance
 - `git diff HEAD` reads unstaged + staged changes
-- Large diffs: Truncate if > 100KB (configurable)
-- No history traversal (only current changes)
+- **Truncation behavior for large diffs:**
+  - Measure: Raw diff output size (unified diff format)
+  - Threshold: 100KB (configurable via `gitDiff.maxSizeBytes` in config)
+  - Truncation point: End of diff (keep beginning)
+  - Warning: Log `[WARN] Git diff truncated from X bytes to 100KB`
+  - LLM prompt: Append `<note>Git diff was truncated due to size. Showing first 100KB.</note>`
+  - Rationale: Beginning of diff shows file context and initial changes
+
 
 ### Concurrency
 - Multiple agents can create separate sessions
