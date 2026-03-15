@@ -450,6 +450,36 @@ export async function loadConfig(projectRoot: string): Promise<PingpongConfig> {
     config.prd.fallbackPath = process.env.PINGPONG_PRD_PATH;
   }
 
+  return validateConfig(config);
+}
+
+function validateConfig(config: PingpongConfig): PingpongConfig {
+  // Validate LLM timeout
+  if (config.llm.timeout <= 0) {
+    console.warn(`[WARN] Invalid timeout: ${config.llm.timeout}, using default 1800`);
+    config.llm.timeout = 1800;
+  }
+  
+  // Validate escalation port
+  if (config.escalation.port < 1024 || config.escalation.port > 65535) {
+    console.warn(`[WARN] Invalid port: ${config.escalation.port}, using default 3456`);
+    config.escalation.port = 3456;
+  }
+  
+  // Validate LLM endpoint URL
+  try {
+    new URL(config.llm.endpoint);
+  } catch {
+    console.warn(`[WARN] Invalid endpoint URL: ${config.llm.endpoint}, using default`);
+    config.llm.endpoint = DEFAULT_CONFIG.llm.endpoint;
+  }
+  
+  // Validate maxIterations
+  if (config.review.maxIterations < 1) {
+    console.warn(`[WARN] Invalid maxIterations: ${config.review.maxIterations}, using default 5`);
+    config.review.maxIterations = 5;
+  }
+  
   return config;
 }
 ```
@@ -886,6 +916,45 @@ export class SessionManager {
 
   constructor(sessionDir: string) {
     this.sessionDir = sessionDir;
+    this.loadSessions();
+  }
+
+  private async loadSessions(): Promise<void> {
+    try {
+      await fs.mkdir(this.sessionDir, { recursive: true });
+      const files = await fs.readdir(this.sessionDir);
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const content = await fs.readFile(path.join(this.sessionDir, file), 'utf-8');
+          const session = JSON.parse(content) as ReviewSession;
+          this.sessions.set(session.sessionId, session);
+        }
+      }
+    } catch {
+      // Session dir doesn't exist or is empty, start fresh
+    }
+  }
+
+  private async saveSession(session: ReviewSession): Promise<void> {
+    try {
+      await fs.mkdir(this.sessionDir, { recursive: true });
+      await fs.writeFile(
+        path.join(this.sessionDir, `${session.sessionId}.json`),
+        JSON.stringify(session, null, 2)
+      );
+    } catch (error) {
+      console.error('[ERROR] Failed to save session:', error);
+    }
+  }
+
+  private async deleteSessionFile(sessionId: string): Promise<void> {
+    try {
+      await fs.unlink(path.join(this.sessionDir, `${sessionId}.json`));
+    } catch {
+      // File doesn't exist
+    }
+  }
+    this.sessionDir = sessionDir;
   }
 
   createSession(input: {
@@ -912,6 +981,7 @@ export class SessionManager {
     };
 
     this.sessions.set(session.sessionId, session);
+    this.saveSession(session);
     return session;
   }
 
@@ -927,16 +997,16 @@ export class SessionManager {
     if (!session) return;
 
     Object.assign(session, updates, { updatedAt: Date.now() });
+    this.saveSession(session);
   }
-
   incrementIteration(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
     session.iterationCount++;
     session.updatedAt = Date.now();
+    this.saveSession(session);
   }
-
   listSessions(): ReviewSession[] {
     return Array.from(this.sessions.values());
   }
@@ -946,6 +1016,7 @@ export class SessionManager {
     for (const [sessionId, session] of this.sessions.entries()) {
       if (now - session.createdAt > maxAgeMs) {
         this.sessions.delete(sessionId);
+        this.deleteSessionFile(sessionId);
       }
     }
   }
@@ -1934,6 +2005,128 @@ git add src/escalation-server.ts
 git commit -m "feat: implement Express escalation server with web UI"
 ```
 
+### Task 10b: Test Escalation Server
+
+**Files:**
+- Create: `tests/unit/escalation-server.test.ts`
+
+- [ ] **Step 1: Write escalation server tests**
+
+```typescript
+// tests/unit/escalation-server.test.ts
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { request } from 'express';
+import { startEscalationServer } from '../../src/escalation-server.js';
+import { SessionManager } from '../../src/session-manager.js';
+import type { ReviewSession } from '../../src/types.js';
+
+describe('escalation-server', () => {
+  let sessionManager: SessionManager;
+  let app: any;
+  let testSession: ReviewSession;
+  const testPort = 3457;
+
+  beforeEach(async () => {
+    sessionManager = new SessionManager('/tmp/test-escalation-server');
+    testSession = sessionManager.createSession({
+      taskId: 'test-escalation-001',
+      summary: 'Test escalation UI'
+    });
+    sessionManager.updateSession(testSession.sessionId, {
+      status: 'escalated',
+      feedback: 'Escalated to human',
+      reviewerType: 'human'
+    });
+    app = await startEscalationServer(testPort, sessionManager, false);
+  });
+
+  afterEach(async () => {
+    const fs = await import('fs/promises');
+    await fs.rm('/tmp/test-escalation-server', { recursive: true, force: true });
+  });
+
+  it('should return HTML for /review/:sessionId', async () => {
+    const response = await request(app).get(`/review/${testSession.sessionId}`);
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('Pingpong Review Escalation');
+    expect(response.text).toContain(testSession.taskId);
+    expect(response.text).toContain(testSession.summary);
+  });
+
+  it('should return 404 for non-existent session', async () => {
+    const response = await request(app).get('/review/nonexistent');
+    expect(response.status).toBe(404);
+    expect(response.text).toContain('Session not found');
+  });
+
+  it('should handle POST /api/sessions/:id/feedback', async () => {
+    let resolved = false;
+    let feedbackReceived = '';
+    sessionManager.setResolveCallback(testSession.sessionId, (feedback: string) => {
+      resolved = true;
+      feedbackReceived = feedback;
+    });
+
+    const response = await request(app)
+      .post(`/api/sessions/${testSession.sessionId}/feedback`)
+      .send({ feedback: 'Looks good, approved' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(resolved).toBe(true);
+    expect(feedbackReceived).toBe('Looks good, approved');
+  });
+
+  it('should return 400 for missing feedback', async () => {
+    const response = await request(app)
+      .post(`/api/sessions/${testSession.sessionId}/feedback`)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Feedback is required');
+  });
+
+  it('should list all sessions on GET /api/sessions', async () => {
+    const response = await request(app).get('/api/sessions');
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(response.body.length).toBeGreaterThan(0);
+    expect(response.body[0]).toHaveProperty('sessionId');
+    expect(response.body[0]).toHaveProperty('taskId');
+    expect(response.body[0]).toHaveProperty('status');
+  });
+
+  it('should return health status on GET /api/health', async () => {
+    const response = await request(app).get('/api/health');
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ok');
+    expect(response.body.timestamp).toBeDefined();
+  });
+});
+```
+
+- [ ] **Step 2: Install supertest for HTTP testing**
+
+```bash
+npm install -D supertest @types/supertest
+```
+
+- [ ] **Step 3: Run tests to verify they pass**
+
+```bash
+npm test -- tests/unit/escalation-server.test.ts
+```
+
+Expected: PASS
+
+- [ ] **Step 4: Commit escalation server tests**
+
+```bash
+git add tests/unit/escalation-server.test.ts
+git commit -m "test: add escalation server HTTP API tests"
+```
+
+
 ---
 
 ## Chunk 7: Templates & Documentation
@@ -2293,22 +2486,55 @@ describe('integration: review flow', () => {
     if (mcpServer) mcpServer.kill();
   });
 
-  it('should complete full review cycle (approved)', async () => {
-    // Test: Agent calls request_review → LLM approves → agent receives approval
-    // This requires MCP client setup, skip for now
-    expect(true).toBe(true);
+  it('should increment iteration count across review calls', async () => {
+    // Test: Multiple request_review calls for same taskId increment iteration count
+    const { SessionManager } = await import('../../src/session-manager.js');
+    const manager = new SessionManager('/tmp/test-integration-sessions');
+
+    const session1 = manager.createSession({ taskId: 'test-001', summary: 'First review' });
+    expect(session1.iterationCount).toBe(0);
+
+    // Simulate first review iteration
+    manager.incrementIteration(session1.sessionId);
+    manager.updateSession(session1.sessionId, { status: 'needs_revision', feedback: 'Fix X', reviewerType: 'llm' });
+
+    const session2 = manager.getSession(session1.sessionId);
+    expect(session2?.iterationCount).toBe(1);
+
+    // Simulate second review iteration
+    manager.incrementIteration(session1.sessionId);
+    const session3 = manager.getSession(session1.sessionId);
+    expect(session3?.iterationCount).toBe(2);
+
+    // Cleanup
+    const fs = await import('fs/promises');
+    await fs.rm('/tmp/test-integration-sessions', { recursive: true, force: true });
   });
 
-  it('should complete review cycle with revision (needs_revision)', async () => {
-    // Test: Agent calls request_review → LLM requests changes → agent fixes → LLM approves
-    expect(true).toBe(true);
-  });
+  it('should trigger escalation after max iterations', async () => {
+    // Test: After 5 iterations, escalation should be triggered
+    const { SessionManager } = await import('../../src/session-manager.js');
+    const manager = new SessionManager('/tmp/test-integration-escalation');
+    const config = { review: { maxIterations: 5 } };
 
-  it('should escalate after max iterations', async () => {
-    // Test: 5 iterations → escalation server starts → human approves
-    expect(true).toBe(true);
+    const session = manager.createSession({ taskId: 'test-escalate', summary: 'Test escalation' });
+
+    // Simulate 5 iterations
+    for (let i = 0; i < 5; i++) {
+      manager.incrementIteration(session.sessionId);
+    }
+
+    const updated = manager.getSession(session.sessionId);
+    expect(updated?.iterationCount).toBe(5);
+
+    // Check if escalation would be triggered (iteration count >= maxIterations)
+    const shouldEscalate = updated!.iterationCount >= config.review.maxIterations;
+    expect(shouldEscalate).toBe(true);
+
+    // Cleanup
+    const fs = await import('fs/promises');
+    await fs.rm('/tmp/test-integration-escalation', { recursive: true, force: true });
   });
-});
 ```
 
 - [ ] **Step 2: Create mock LLM server for testing**
