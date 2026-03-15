@@ -935,10 +935,10 @@ export class SessionManager {
     }
   }
 
-  private async saveSession(session: ReviewSession): Promise<void> {
+  private saveSession(session: ReviewSession): void {
     try {
-      await fs.mkdir(this.sessionDir, { recursive: true });
-      await fs.writeFile(
+      fs.mkdirSync(this.sessionDir, { recursive: true });
+      fs.writeFileSync(
         path.join(this.sessionDir, `${session.sessionId}.json`),
         JSON.stringify(session, null, 2)
       );
@@ -947,9 +947,9 @@ export class SessionManager {
     }
   }
 
-  private async deleteSessionFile(sessionId: string): Promise<void> {
+  private deleteSessionFile(sessionId: string): void {
     try {
-      await fs.unlink(path.join(this.sessionDir, `${sessionId}.json`));
+      fs.unlinkSync(path.join(this.sessionDir, `${sessionId}.json`));
     } catch {
       // File doesn't exist
     }
