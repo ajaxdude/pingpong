@@ -919,13 +919,13 @@ export class SessionManager {
     this.loadSessions();
   }
 
-  private async loadSessions(): Promise<void> {
+  private loadSessions(): void {
     try {
-      await fs.mkdir(this.sessionDir, { recursive: true });
-      const files = await fs.readdir(this.sessionDir);
+      fs.mkdirSync(this.sessionDir, { recursive: true });
+      const files = fs.readdirSync(this.sessionDir);
       for (const file of files) {
         if (file.endsWith('.json')) {
-          const content = await fs.readFile(path.join(this.sessionDir, file), 'utf-8');
+          const content = fs.readFileSync(path.join(this.sessionDir, file), 'utf-8');
           const session = JSON.parse(content) as ReviewSession;
           this.sessions.set(session.sessionId, session);
         }
@@ -954,9 +954,6 @@ export class SessionManager {
       // File doesn't exist
     }
   }
-    this.sessionDir = sessionDir;
-  }
-
   createSession(input: {
     taskId: string;
     summary: string;
@@ -2015,7 +2012,7 @@ git commit -m "feat: implement Express escalation server with web UI"
 ```typescript
 // tests/unit/escalation-server.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { request } from 'express';
+import request from 'supertest';
 import { startEscalationServer } from '../../src/escalation-server.js';
 import { SessionManager } from '../../src/session-manager.js';
 import type { ReviewSession } from '../../src/types.js';
