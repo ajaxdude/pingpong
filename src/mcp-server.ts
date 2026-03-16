@@ -1,11 +1,14 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SessionManager } from './session-manager.js';
 import { loadConfig, DEFAULT_CONFIG } from './config.js';
 import { RequestReviewInput, RequestReviewResult } from './types.js';
-import * as z from 'zod';
 
 // Read version from package.json
 const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf-8');
@@ -15,14 +18,16 @@ const { version } = JSON.parse(packageJson);
 let sessionManager: SessionManager | null = null;
 let config = DEFAULT_CONFIG;
 
-// Create MCP server (non-nullable)
-const mcpServer = new McpServer(
+// Create MCP server
+const mcpServer = new Server(
   {
     name: 'pingpong',
     version: version,
   },
   {
-    capabilities: {},
+    capabilities: {
+      tools: {},
+    },
   }
 );
 
@@ -111,78 +116,144 @@ async function initializeServer(): Promise<void> {
   }
 }
 
-// Register tools
-mcpServer.registerTool('request_review', {
-  description: 'Request a code review for a task',
-  inputSchema: {
-    taskId: z.string().describe('The task ID to review'),
-    summary: z.string().describe('Brief summary of the task'),
-    details: z.string().optional().describe('Additional details about the task'),
-    conversationHistory: z.array(z.string()).optional().describe('Conversation history as context'),
-  },
-}, async (args) => {
-  const result = await handleRequestReview(args);
-  return {
-    content: [
+// Set up request handlers
+function setupRequestHandlers(): void {
+  // List available tools
+  mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [
       {
-        type: 'text',
-        text: JSON.stringify(result),
+        name: 'request_review',
+        description:
+          'Request a code review for a task. After calling this tool, wait for expert feedback.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: {
+              type: 'string',
+              description: 'The task ID to review',
+            },
+            summary: {
+              type: 'string',
+              description: 'Brief summary of the task',
+            },
+            details: {
+              type: 'string',
+              description: 'Additional details about the task',
+            },
+            conversationHistory: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Conversation history as context',
+            },
+          },
+          required: ['taskId', 'summary'],
+        },
+      },
+      {
+        name: 'get_session_list',
+        description: 'Returns list of all review sessions',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_session_details',
+        description: 'Returns details for a specific session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: {
+              type: 'string',
+              description: 'The session ID to retrieve',
+            },
+          },
+          required: ['sessionId'],
+        },
+      },
+      {
+        name: 'resolve_session',
+        description: 'Resolve a session with feedback',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: {
+              type: 'string',
+              description: 'The session ID to resolve',
+            },
+            feedback: {
+              type: 'string',
+              description: 'Feedback for resolving the session',
+            },
+          },
+          required: ['sessionId', 'feedback'],
+        },
       },
     ],
-  };
-});
+  }));
 
-mcpServer.registerTool('get_session_list', {
-  description: 'Returns list of all review sessions',
-}, async (args) => {
-  const result = await handleGetSessionList();
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(result),
-      },
-    ],
-  };
-});
-
-mcpServer.registerTool('get_session_details', {
-  description: 'Returns details for a specific session',
-  inputSchema: {
-    sessionId: z.string().describe('The session ID to retrieve'),
-  },
-}, async (args) => {
-  const result = await handleGetSessionDetails(args.sessionId);
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify(result),
-      },
-    ],
-  };
-});
-
-mcpServer.registerTool('resolve_session', {
-  description: 'Resolve a session with feedback',
-  inputSchema: {
-    sessionId: z.string().describe('The session ID to resolve'),
-    feedback: z.string().describe('Feedback for resolving the session'),
-  },
-}, async (args) => {
-  await handleResolveSession(args.sessionId, args.feedback);
-  return {
-    content: [
-      {
-        type: 'text',
-        text: JSON.stringify({ success: true }),
-      },
-    ],
-  };
-});
+  // Handle tool calls
+  mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    
+    switch (name) {
+      case 'request_review': {
+        const result = await handleRequestReview((args as unknown) as RequestReviewInput);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+      
+      case 'get_session_list': {
+        const result = await handleGetSessionList();
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+      
+      case 'get_session_details': {
+        const result = await handleGetSessionDetails((args as unknown as any).sessionId);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+      
+      case 'resolve_session': {
+        await handleResolveSession((args as unknown as any).sessionId, (args as unknown as any).feedback);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ success: true }),
+            },
+          ],
+        };
+      }
+      
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  });
+}
 
 // Main function to start the server
 async function main(): Promise<void> {
+  setupRequestHandlers();
   await initializeServer();
   
   const transport = new StdioServerTransport();
