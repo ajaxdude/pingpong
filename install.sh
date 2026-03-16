@@ -38,8 +38,9 @@ npm install
 echo "🏗️  Building pingpong..."
 npm run build
 
-# Get the absolute path to index.js
-PINGPONG_INDEX="${PINGPONG_DIR}/dist/index.js"
+# Get the absolute path to mcp.js
+PINGPONG_MCP="${PINGPONG_DIR}/dist/mcp.js"
+
 
 # Go back to original directory for config copy
 cd "${ORIGINAL_DIR}"
@@ -122,7 +123,7 @@ add_pingpong_to_config() {
     
     # Add pingpong to existing config
     temp_file=$(mktemp)
-    jq --arg index "${PINGPONG_INDEX}" '.mcpServers.pingpong = {
+    jq --arg index "${PINGPONG_MCP}" '.mcpServers.pingpong = {
         "type": "stdio",
         "command": "node",
         "args": [$index]
@@ -139,7 +140,7 @@ replace_config() {
     "pingpong": {
       "type": "stdio",
       "command": "node",
-      "args": ["${PINGPONG_INDEX}"]
+      "args": ["${PINGPONG_MCP}"]
     }
   }
 }
@@ -156,7 +157,7 @@ if [ ! -f "${MCP_CONFIG}" ]; then
     "pingpong": {
       "type": "stdio",
       "command": "node",
-      "args": ["${PINGPONG_INDEX}"]
+      "args": ["${PINGPONG_MCP}"]
     }
   }
 }

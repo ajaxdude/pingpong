@@ -25,7 +25,7 @@ curl -sSL https://raw.githubusercontent.com/ajaxdude/pingpong/master/install.sh 
 
 **3. MCP Configuration** (`~/.omp/agent/mcp.json`)
 - Adds pingpong server to existing MCP configuration
-- Points to `~/.omp/skills/pingpong/dist/index.js`
+- Points to `~/.omp/skills/pingpong/dist/mcp.js`
 
 **4. Project Config** (your current directory)
 - `pingpong.config.example.json` - Example configuration file
