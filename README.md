@@ -1,4 +1,15 @@
-# Pingpong - Automated Code Review MCP
+# Pingpong - Automated Code Review MCP (Save Premium Requests from GitHub Copilot)
+
+**Automated code review for MCP agents, designed to minimize GitHub Copilot premium requests using a local LLM (llama.cpp). Inspired by copilot-leecher.**
+
+Pingpong is an MCP (Model Context Protocol) review server that enables agents to iterate on their work without burning Copilot premium request quota. Every review loop happens via a local LLM instead of a human reviewer:
+- Automated reviews (up to 5): each agent request triggers evaluation by a local LLM (llama.cpp) against PRD, code diff, and built-in criteria.
+- **Zero premium request cost:** follow-up improvements, refactors, and fixes cost nothing until human escalation.
+- **Human escalation:** after 5 incomplete attempts or LLM errors, pingpong starts a web UI for manual feedback, keeping you in control only when automation fails.
+- Inspired by [copilot-leecher](https://github.com/yosebyte/copilot-leecher): all agent review iterations are free, human requests are rare, and PRD/context are always enforced.
+
+**Ideal for Oh My Pi and any MCP-compatible agent system.**
+
 
 ---
 **Agent Integration and LLM Prompt Setup**
