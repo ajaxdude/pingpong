@@ -54,6 +54,45 @@ fi
 echo ""
 echo "🔧 Configuring MCP for Oh-My-Pi..."
 
+# Function to add pingpong to existing config
+add_pingpong_to_config() {
+    local temp_file=$(mktemp)
+    
+    # Check if pingpong already exists in config
+    if grep -q '"pingpong"' "${MCP_CONFIG}"; then
+        echo "🔄 Pingpong already exists in MCP configuration. Updating..."
+        # Remove existing pingpong entry
+        jq 'del(.mcpServers.pingpong)' "${MCP_CONFIG}" > "${temp_file}"
+        mv "${temp_file}" "${MCP_CONFIG}"
+    fi
+    
+    # Add pingpong to existing config
+    temp_file=$(mktemp)
+    jq --arg index "${PINGPONG_INDEX}" '.mcpServers.pingpong = {
+        "type": "stdio",
+        "command": "node",
+        "args": [$index]
+    }' "${MCP_CONFIG}" > "${temp_file}"
+    mv "${temp_file}" "${MCP_CONFIG}"
+    echo "✅ Added pingpong to MCP configuration"
+}
+
+# Function to replace entire config
+replace_config() {
+    cat > "${MCP_CONFIG}" <<EOF
+{
+  "mcpServers": {
+    "pingpong": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PINGPONG_INDEX}"]
+    }
+  }
+}
+EOF
+    echo "✅ Replaced MCP configuration with pingpong server"
+}
+
 if [ ! -f "${MCP_CONFIG}" ]; then
     # Create new mcp.json
     echo "📝 Creating new MCP configuration at ${MCP_CONFIG}..."
@@ -70,62 +109,42 @@ if [ ! -f "${MCP_CONFIG}" ]; then
 EOF
     echo "✅ Created MCP configuration with pingpong server"
 else
-    # mcp.json exists - ask what to do
-    echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
-    echo ""
-    echo "Choose an option:"
-    echo "  1) Add pingpong to existing configuration (recommended)"
-    echo "  2) Replace entire MCP configuration"
-    echo "  3) Skip MCP configuration"
-    echo ""
-    read -p "Enter choice (1-3): " choice
+    # mcp.json exists - check if running interactively
+    if [ -t 0 ]; then
+        # Running interactively (terminal input available)
+        echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
+        echo ""
+        echo "Choose an option:"
+        echo "  1) Add pingpong to existing configuration (recommended)"
+        echo "  2) Replace entire MCP configuration"
+        echo "  3) Skip MCP configuration"
+        echo ""
+        read -p "Enter choice (1-3): " choice
 
-    case $choice in
-        1)
-            echo "➕ Adding pingpong to existing MCP configuration..."
-            
-            # Check if pingpong already exists in config
-            if grep -q '"pingpong"' "${MCP_CONFIG}"; then
-                echo "⚠️  Pingpong already exists in MCP configuration. Updating..."
-                # Remove existing pingpong entry
-                temp_file=$(mktemp)
-                jq 'del(.mcpServers.pingpong)' "${MCP_CONFIG}" > "${temp_file}"
-                mv "${temp_file}" "${MCP_CONFIG}"
-            fi
-            
-            # Add pingpong to existing config
-            temp_file=$(mktemp)
-            jq --arg index "${PINGPONG_INDEX}" '.mcpServers.pingpong = {
-                "type": "stdio",
-                "command": "node",
-                "args": [$index]
-            }' "${MCP_CONFIG}" > "${temp_file}"
-            mv "${temp_file}" "${MCP_CONFIG}"
-            echo "✅ Added pingpong to MCP configuration"
-            ;;
-        2)
-            echo "🔄 Replacing MCP configuration..."
-            cat > "${MCP_CONFIG}" <<EOF
-{
-  "mcpServers": {
-    "pingpong": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["${PINGPONG_INDEX}"]
-    }
-  }
-}
-EOF
-            echo "✅ Replaced MCP configuration with pingpong server"
-            ;;
-        3)
-            echo "⏭️  Skipping MCP configuration"
-            echo "   You can manually add pingpong to ${MCP_CONFIG} later"
-            ;;
-        *)
-            echo "❌ Invalid choice. Skipping MCP configuration"
-            ;;
-    esac
+        case $choice in
+            1)
+                echo "➕ Adding pingpong to existing MCP configuration..."
+                add_pingpong_to_config
+                ;;
+            2)
+                echo "🔄 Replacing MCP configuration..."
+                replace_config
+                ;;
+            3)
+                echo "⏭️  Skipping MCP configuration"
+                echo "   You can manually add pingpong to ${MCP_CONFIG} later"
+                ;;
+            *)
+                echo "❌ Invalid choice. Skipping MCP configuration"
+                ;;
+        esac
+    else
+        # Running non-interactively (piped input)
+        echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
+        echo "📋 Running in non-interactive mode - adding pingpong to existing configuration..."
+        echo "   (To run interactively: download script and run directly)"
+        add_pingpong_to_config
+    fi
 fi
 
 echo ""
