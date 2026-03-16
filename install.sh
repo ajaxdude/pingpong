@@ -50,6 +50,60 @@ if [ ! -f "pingpong.config.json" ] && [ ! -f "pingpong.config.example.json" ]; t
     cp "${PINGPONG_DIR}/pingpong.config.example.json" ./pingpong.config.example.json
 fi
 
+# Copy agent template files to ~/.omp/agent/
+echo ""
+echo "📄 Installing agent template files..."
+
+# Copy APPEND_SYSTEM.md if it doesn't exist or ask to overwrite
+if [ -f "${OMP_AGENT_DIR}/APPEND_SYSTEM.md" ]; then
+    echo "⚠️  Existing APPEND_SYSTEM.md found at ${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
+    
+    # Check if running interactively
+    if [ -t 0 ]; then
+        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite; then
+            if [[ $overwrite =~ ^[Yy]$ ]]; then
+                cp "${PINGPONG_DIR}/templates/APPEND_SYSTEM.md" "${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
+                echo "✅ Updated APPEND_SYSTEM.md"
+            else
+                echo "⏭️  Keeping existing APPEND_SYSTEM.md"
+            fi
+        else
+            echo ""
+            echo "⏱️  No input received - keeping existing APPEND_SYSTEM.md"
+        fi
+    else
+        echo "📋 Keeping existing APPEND_SYSTEM.md (run interactively to overwrite)"
+    fi
+else
+    cp "${PINGPONG_DIR}/templates/APPEND_SYSTEM.md" "${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
+    echo "✅ Created APPEND_SYSTEM.md"
+fi
+
+# Copy LLAMACPP.md if it doesn't exist or ask to overwrite
+if [ -f "${OMP_AGENT_DIR}/LLAMACPP.md" ]; then
+    echo "⚠️  Existing LLAMACPP.md found at ${OMP_AGENT_DIR}/LLAMACPP.md"
+    
+    # Check if running interactively
+    if [ -t 0 ]; then
+        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite; then
+            if [[ $overwrite =~ ^[Yy]$ ]]; then
+                cp "${PINGPONG_DIR}/templates/LLAMACPP.md" "${OMP_AGENT_DIR}/LLAMACPP.md"
+                echo "✅ Updated LLAMACPP.md"
+            else
+                echo "⏭️  Keeping existing LLAMACPP.md"
+            fi
+        else
+            echo ""
+            echo "⏱️  No input received - keeping existing LLAMACPP.md"
+        fi
+    else
+        echo "📋 Keeping existing LLAMACPP.md (run interactively to overwrite)"
+    fi
+else
+    cp "${PINGPONG_DIR}/templates/LLAMACPP.md" "${OMP_AGENT_DIR}/LLAMACPP.md"
+    echo "✅ Created LLAMACPP.md"
+fi
+
 # Handle MCP configuration
 echo ""
 echo "🔧 Configuring MCP for Oh-My-Pi..."
@@ -161,9 +215,13 @@ echo "📋 Next steps:"
 echo "   1. Copy pingpong.config.example.json to your project root as pingpong.config.json"
 echo "   2. Edit pingpong.config.json to set your LLM endpoint (default: http://127.0.0.1:8080/v1/chat/completions)"
 echo "   3. Ensure llama.cpp is running on port 8080"
-echo "   4. Restart your oh-my-pi agent to load the MCP configuration"
+echo "   4. Restart your oh-my-pi agent to load the MCP configuration and templates"
 echo ""
 echo "📖 Full documentation: https://github.com/ajaxdude/pingpong"
+echo ""
+echo "🔧 Installed templates:"
+echo "   ${OMP_AGENT_DIR}/APPEND_SYSTEM.md - Agent system prompt template"
+echo "   ${OMP_AGENT_DIR}/LLAMACPP.md - LLM configuration template"
 echo ""
 if [ -f "${MCP_CONFIG}" ]; then
     echo "🔧 MCP Configuration:"
