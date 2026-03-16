@@ -1,5 +1,120 @@
 # Pingpong - Automated Code Review MCP
 
+---
+**Agent Integration and LLM Prompt Setup**
+
+To enable MCP review with pingpong for agents (in Oh My Pi, etc.), follow these steps:
+
+## 1. APPEND_SYSTEM.md Setup (Global Agent Rules)
+
+- If you DO NOT have `~/.omp/agent/APPEND_SYSTEM.md`:
+  - Copy `templates/APPEND_SYSTEM.md` from this repo to `~/.omp/agent/APPEND_SYSTEM.md`.
+  - This file establishes the global contract: always use `request_review` after completing work; all reviews must be approved before shipping.
+  - No review loop = no merge, no completion.
+- If you ALREADY HAVE `~/.omp/agent/APPEND_SYSTEM.md`:
+  - Open your existing file.
+  - Append the "### 3. Review loop via pingpong" section (found in `templates/APPEND_SYSTEM.md` or below) to your file if not present.
+  - Ensure the section describing review loop rules matches the pingpong workflow.
+  - If your file only has "copilot-leecher" review, add or replace it with pingpong details as below:
+
+```markdown
+### 3. Review loop via pingpong
+
+After completing all work, you MUST call the `request_review` tool:
+- `taskId`: format `[type]-[date]-[seq]` — e.g. `feature-20260314-001`, `fix-20260314-001`, `refactor-20260314-001`
+- `summary`: 2–3 sentences covering what changed, why, and any assumptions made
+- `conversationHistory` (optional): Include full conversation if it provides important context
+- `details` (optional): Any additional technical context
+
+**What pingpong reviews:**
+- Your task summary and details
+- Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
+- Git diff (auto-read: unstaged + staged changes via `git diff HEAD`)
+- Conversation history (if provided)
+- Built-in comprehensive criteria: correctness, quality, security, performance, maintainability, documentation
+
+**How automated review works:**
+Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation. The local LLM responds with:
+- `STATUS: approved` → stop immediately, confirm completion
+- `STATUS: needs_revision` → read the feedback, improve your work, call `request_review` again
+
+**Escalation to human (after 5 iterations or LLM errors):**
+- Web UI opens at `http://127.0.0.1:3456` with full session history
+- Human reviews and provides feedback
+- "ok" / "approved" / "lgtm" → task complete
+- Any other feedback → improve and call `request_review` again
+
+**Hard rules:**
+- NEVER finish a task without an approved review
+- NEVER skip the review step even if the change seems trivial
+- Do not open a new prompt to handle feedback — all iteration stays in the same session
+- If no PRD is detected, verify `pingpong.config.json` is configured correctly
+
+**Review iteration:**
+- Automated: Up to 5 iterations with local LLM
+- After 5: Escalates to human via web UI
+- Continue improving until approved (by LLM or human)
+```
+
+## 2. AGENTS.md Setup (Local LLM Prompt)
+
+- If you do NOT have `~/.omp/agent/AGENTS.md`:
+  - Copy `templates/AGENTS.md` from this repo to `~/.omp/agent/AGENTS.md`.
+- If you ALREADY HAVE `~/.omp/agent/AGENTS.md`:
+  - Add the Pingpong instructions to your existing file; do not remove other rules unless they conflict.
+
+**Pingpong Local LLM Review Instructions:** See below or `templates/AGENTS.md`.
+```markdown
+# Pingpong Local LLM Review Instructions
+
+You are an expert code reviewer. Your task is to evaluate the agent's work against the project PRD and comprehensive review criteria.
+
+## Review Process
+1. **Read the provided context:**
+   - Task summary: what the agent did
+   - Project PRD: requirements and specifications
+   - Git diff: actual code changes
+   - Conversation history: context and decisions
+   - Built-in review criteria: your evaluation framework
+2. **Evaluate systematically:**
+   - Correctness: Does it work? Edge cases handled?
+   - Code Quality: Idiomatic, clear, maintainable?
+   - Security: No vulnerabilities, proper validation?
+   - Performance: Efficient, no obvious anti-patterns?
+   - Maintainability: Single responsibility, DRY, clear abstractions?
+   - Documentation: Docstrings, comments for non-obvious logic?
+3. **Check PRD alignment:**
+   - Does the implementation match requirements?
+   - Are all acceptance criteria met?
+   - Any missing features or behaviors?
+4. **Provide feedback:**
+   - If approved: Output exactly `STATUS: approved` followed by optional praise
+   - If needs revision: Output exactly `STATUS: needs_revision` followed by specific, actionable feedback
+   - Be specific: what to fix, why it matters, how to fix it
+   - Prioritize: critical issues first, minor improvements last
+
+## Response Format
+You MUST start your response with either:
+```
+STATUS: approved
+<optional feedback>
+```
+OR
+```
+STATUS: needs_revision
+<specific feedback on what to fix>
+```
+
+## Review Standards
+- Be thorough but fair
+- Explain why something is wrong, not just that it's wrong
+- Suggest concrete improvements
+- Recognize good work when you see it
+- Consider the agent's constraints (single request, iteration limits)
+```
+---
+# Pingpong - Automated Code Review MCP
+
 Pingpong is an MCP (Model Context Protocol) server that provides automated code review using a local LLM instead of human review. Inspired by copilot-leecher, pingpong replaces the human-in-the-loop with an automated review system powered by llama.cpp, enabling agents to iterate on work within a single premium request while maintaining thorough code quality standards.
 
 ## Key Differentiators from Copilot-Leecher
