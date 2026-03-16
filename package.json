@@ -13,7 +13,7 @@
     "watch": "tsc --watch"
   },
   "bin": {
-    "pingpong": "./dist/index.js"
+    "pingpong": "./dist/mcp.js"
   },
   "keywords": ["mcp", "llm", "code-review", "copilot"],
   "license": "MIT",
