@@ -7,6 +7,9 @@ set -e
 
 echo "🎯 Installing Pingpong for Oh-My-Pi..."
 
+# Remember the original working directory
+ORIGINAL_DIR="$(pwd)"
+
 # Detect oh-my-pi skills directory
 OMP_SKILLS_DIR="${HOME}/.omp/skills"
 PINGPONG_DIR="${OMP_SKILLS_DIR}/pingpong"
@@ -32,8 +35,11 @@ npm install
 echo "🏗️  Building pingpong..."
 npm run build
 
+# Go back to original directory for config copy
+cd "${ORIGINAL_DIR}"
+
 # Create example config in current directory if it doesn't exist
-if [ ! -f "pingpong.config.json" ]; then
+if [ ! -f "pingpong.config.json" ] && [ ! -f "pingpong.config.example.json" ]; then
     echo "📝 Creating pingpong.config.example.json in current directory..."
     cp "${PINGPONG_DIR}/pingpong.config.example.json" ./pingpong.config.example.json
     echo ""
@@ -46,6 +52,10 @@ if [ ! -f "pingpong.config.json" ]; then
     echo "   4. Add pingpong to your MCP client configuration"
     echo ""
     echo "📖 Full documentation: https://github.com/ajaxdude/pingpong"
+elif [ -f "pingpong.config.json" ]; then
+    echo "✅ Pingpong is installed and you already have a config file!"
+    echo ""
+    echo "📖 Documentation: https://github.com/ajaxdude/pingpong"
 else
     echo "✅ Pingpong is already installed and up to date!"
     echo ""
