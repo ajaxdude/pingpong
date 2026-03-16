@@ -1,0 +1,20 @@
+{
+  "llm": {
+    "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+    "model": "default",
+    "timeout": 1800
+  },
+  "prd": {
+    "autoDetect": true,
+    "paths": ["./docs/PRD.md", "./PRD.md", "./README.md"],
+    "fallbackPath": null
+  },
+  "review": {
+    "maxIterations": 5,
+    "retryOnLlmError": true
+  },
+  "escalation": {
+    "port": 3456,
+    "autoOpenBrowser": true
+  }
+}

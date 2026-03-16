@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escalation Review - {{taskId}}</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f5f5f5;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: #2c3e50;
+    }
+    
+    .review-summary {
+      background: #f8f9fa;
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 25px;
+    }
+    
+    .review-summary h2 {
+      font-size: 1.1rem;
+      color: #555;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .summary-item {
+      margin-bottom: 12px;
+    }
+    
+    .summary-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .summary-label {
+      display: inline-block;
+      font-weight: 600;
+      color: #666;
+      width: 100px;
+    }
+    
+    .summary-value {
+      color: #2c3e50;
+    }
+    
+    .feedback-section {
+      margin-bottom: 25px;
+    }
+    
+    .feedback-section h2 {
+      font-size: 1.1rem;
+      color: #555;
+      margin-bottom: 10px;
+    }
+    
+    textarea {
+      width: 100%;
+      min-height: 150px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+    
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .btn-ok {
+      background: #27ae60;
+      color: white;
+    }
+    
+    .btn-ok:hover {
+      background: #219a52;
+    }
+    
+    .btn-approved {
+      background: #2980b9;
+      color: white;
+    }
+    
+    .btn-approved:hover {
+      background: #2471a3;
+    }
+    
+    .btn-lgtm {
+      background: #e67e22;
+      color: white;
+    }
+    
+    .btn-lgtm:hover {
+      background: #d35400;
+    }
+    
+    .error-page {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    
+    .error-page h1 {
+      color: #e74c3c;
+      margin-bottom: 15px;
+    }
+    
+    .error-page p {
+      color: #666;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #ddd;
+      border-top-color: #3498db;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  {{#error}}
+  <div class="container error-page">
+    <h1>Error</h1>
+    <p>{{error}}</p>
+  </div>
+  {{/error}}
+  
+  {{^error}}
+  <div class="container">
+    <h1>Escalation Review</h1>
+    
+    <div class="review-summary">
+      <h2>Review Summary</h2>
+      <div class="summary-item">
+        <span class="summary-label">Task ID:</span>
+        <span class="summary-value">{{taskId}}</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Summary:</span>
+        <span class="summary-value">{{summary}}</span>
+      </div>
+      <div class="summary-item">
+        <span class="summary-label">Iteration:</span>
+        <span class="summary-value">{{iterationCount}}</span>
+      </div>
+      {{#status}}
+      <div class="summary-item">
+        <span class="summary-label">Status:</span>
+        <span class="summary-value">{{status}}</span>
+      </div>
+      {{/status}}
+      {{#llmFeedback}}
+      <div class="summary-item">
+        <span class="summary-label">LLM Feedback:</span>
+        <span class="summary-value">{{llmFeedback}}</span>
+      </div>
+      {{/llmFeedback}}
+    </div>
+    
+    <form class="feedback-section" id="feedbackForm">
+      <h2>Human Feedback</h2>
+      <textarea 
+        name="feedback" 
+        id="feedback" 
+        placeholder="Provide your feedback here..."></textarea>
+      
+      <div class="actions">
+        <button type="button" class="btn-ok" data-action="ok">OK</button>
+        <button type="button" class="btn-approved" data-action="approved">Approved</button>
+        <button type="button" class="btn-lgtm" data-action="lgtm">LGTM</button>
+        <button type="submit" class="btn-lgtm" style="background: #3498db;">Submit Feedback</button>
+      </div>
+    </form>
+  </div>
+  
+  <script>
+    const sessionId = '{{id}}';
+    
+    // Quick action buttons
+    document.querySelectorAll('[data-action]').forEach(button => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.action;
+        document.getElementById('feedback').value = action;
+      });
+    });
+    
+    // Form submission
+    document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const feedback = document.getElementById('feedback').value.trim();
+      
+      if (!feedback) {
+        alert('Please provide feedback');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/feedback`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ feedback }),
+        });
+        
+        if (response.ok) {
+          alert('Feedback submitted successfully!');
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`Error: ${error.error || 'Failed to submit feedback'}`);
+        }
+      } catch (err) {
+        alert(`Network error: ${err.message}`);
+      }
+    });
+  </script>
+  {{/error}}
+</body>
+</html>
