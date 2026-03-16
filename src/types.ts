@@ -1,6 +1,9 @@
 // Review status enum values
 export type ReviewStatus = 'pending' | 'approved' | 'needs_revision' | 'escalated';
 
+// Escalation reason enum values
+export type EscalationReason = 'max_iterations' | 'llm_error' | 'connection_failed';
+
 // Reviewer type enum values
 export type ReviewerType = 'llm' | 'human';
 
@@ -31,7 +34,7 @@ export interface ReviewSession {
   conversationHistory?: string[];
   llmFeedback?: string;
   humanFeedback?: string;
-  escalationReason?: string;
+  escalationReason?: EscalationReason;
   iterationCount: number;
   reviewerType?: ReviewerType;
   agentResolve?: (result: RequestReviewResult) => void;

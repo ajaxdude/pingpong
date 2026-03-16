@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup Required - Pingpong</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 700px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+      color: #2c3e50;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .status-icon {
+      font-size: 2rem;
+    }
+    
+    .subtitle {
+      color: #7f8c8d;
+      margin-bottom: 30px;
+      font-size: 1.1rem;
+    }
+    
+    .error-box {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px 20px;
+      border-radius: 6px;
+      margin-bottom: 30px;
+      color: #856404;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+    }
+    
+    .section h2 {
+      font-size: 1.2rem;
+      color: #2c3e50;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section h2 .step-number {
+      background: #667eea;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    
+    .code-block {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 15px;
+      margin: 10px 0;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      position: relative;
+    }
+    
+    .code-block::before {
+      content: 'bash';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #e9ecef;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      color: #6c757d;
+    }
+    
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 50px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .copy-btn:hover {
+      background: #5568d3;
+    }
+    
+    .highlight {
+      background: #fff3cd;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.9rem;
+    }
+    
+    .info-box {
+      background: #d1ecf1;
+      border-left: 4px solid #17a2b8;
+      padding: 15px 20px;
+      border-radius: 6px;
+      margin: 20px 0;
+      color: #0c5460;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <span class="status-icon">🔧</span>
+      Setup Required
+    </h1>
+    <p class="subtitle">Pingpong needs llama.cpp to be running</p>
+    
+    <div class="error-box">
+      <strong>Connection Error:</strong> Cannot connect to <span class="highlight">{{endpoint}}</span>. Please ensure llama.cpp is running.
+    </div>
+    
+    <div class="section">
+      <h2><span class="step-number">1</span> Install llama.cpp</h2>
+      <p>If you haven't installed llama.cpp yet, you can install it with:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+        <code>git clone https://github.com/ggerganov/llama.cpp.git
+cd llama.cpp
+make</code>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2><span class="step-number">2</span> Download a Model</h2>
+      <p>Download a compatible model (e.g., Llama 3, Mistral, etc.):</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+        <code># Example: Download Llama 3 8B Instruct
+wget https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct-GGUF/resolve/main/meta-llama-3-8b-instruct.q4_k_m.gguf</code>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2><span class="step-number">3</span> Start llama.cpp Server</h2>
+      <p>Start the llama.cpp server on port 8080:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+        <code># Replace with your actual model file path
+./llama-server -m path/to/your/model.gguf -p 8080</code>
+      </div>
+      
+      <div class="info-box">
+        <strong>Tip:</strong> You can run llama.cpp on a different port by updating the endpoint in <span class="highlight">pingpong.config.json</span>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2><span class="step-number">4</span> Verify Connection</h2>
+      <p>Test that llama.cpp is running correctly:</p>
+      <div class="code-block">
+        <button class="copy-btn" onclick="copyToClipboard(this)">Copy</button>
+        <code>curl http://127.0.0.1:8080/v1/models</code>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button class="btn-secondary" onclick="window.location.reload()">Check Again</button>
+      <button class="btn-primary" onclick="closeWindow()">Close & Resume Later</button>
+    </div>
+  </div>
+  
+  <script>
+    function copyToClipboard(button) {
+      const codeBlock = button.parentElement;
+      const code = codeBlock.querySelector('code').textContent;
+      
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+          button.textContent = originalText;
+        }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
+    
+    function closeWindow() {
+      alert('After starting llama.cpp, retry your task from the agent.');
+      window.close();
+    }
+    
+    // Auto-refresh every 30 seconds
+    let countdown = 30;
+    setInterval(() => {
+      countdown--;
+      if (countdown <= 0) {
+        window.location.reload();
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

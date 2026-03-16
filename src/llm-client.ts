@@ -45,16 +45,37 @@ export function parseResponse(content: string): { status: string; feedback: stri
 }
 
 /**
+ * Error types for LLM client failures
+ */
+export interface LLMClientError {
+  type: 'connection_failed' | 'timeout' | 'api_error' | 'parse_error' | 'unknown';
+  message: string;
+  originalError?: any;
+}
+
+/**
+ * Type for the LLM client result
+ */
+export type LLMClientResult =
+  | { status: string; feedback: string; }
+  | LLMClientError;
+
+/**
+ * Type for the LLM client interface
+ */
+export type LLMClientInterface = {
+  submitReview: (prompt: string) => Promise<LLMClientResult>;
+};
+
+/**
  * Create LLM client for llama.cpp API
  */
-export function createLLMClient(config: PingpongConfig, options: LLMClientOptions = {}): {
-  submitReview: (prompt: string) => Promise<{ status: string; feedback: string } | null>;
-} {
+export function createLLMClient(config: PingpongConfig, options: LLMClientOptions = {}): LLMClientInterface {
   const timeout = options.timeout ?? config.llm.timeout ?? 30000;
   const endpoint = config.llm.endpoint;
   const model = config.llm.model;
 
-  async function submitReview(prompt: string): Promise<{ status: string; feedback: string } | null> {
+  async function submitReview(prompt: string): Promise<{ status: string; feedback: string } | LLMClientError> {
     const request: LLMRequest = {
       model: model,
       messages: [
@@ -82,20 +103,48 @@ export function createLLMClient(config: PingpongConfig, options: LLMClientOption
       const firstChoice = response.data.choices?.[0];
       if (!firstChoice?.message?.content) {
         console.warn('[LLM Client] No content in LLM response');
-        return null;
+        return {
+          type: 'parse_error',
+          message: 'No content in LLM response'
+        };
       }
 
-      return parseResponse(firstChoice.message.content);
+      const parsed = parseResponse(firstChoice.message.content);
+      if (!parsed) {
+        console.warn('[LLM Client] Failed to parse LLM response');
+        return {
+          type: 'parse_error',
+          message: 'Failed to parse LLM response'
+        };
+      }
+
+      return { status: parsed.status, feedback: parsed.feedback };
     } catch (error) {
       if (axios.isCancel(error)) {
         console.error('[LLM Client] Request timeout');
-        return null;
+        return {
+          type: 'timeout',
+          message: 'Request was canceled due to timeout'
+        };
       }
       
       const axiosError = error as AxiosError;
       if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
         console.error('[LLM Client] Request timeout');
-        return null;
+        return {
+          type: 'timeout',
+          message: 'Request timeout'
+        };
+      }
+
+      // Detect connection errors specifically
+      if (axiosError.code === 'ECONNREFUSED' || axiosError.code === 'ENOTFOUND' || axiosError.code === 'ECONNRESET' || !axiosError.response) {
+        console.error('[LLM Client] Connection failed - llama.cpp may not be running');
+        return {
+          type: 'connection_failed',
+          message: `Cannot connect to LLM endpoint at ${endpoint}. Please ensure llama.cpp is running.`,
+          originalError: axiosError.message
+        };
       }
 
       if (axiosError.response) {
@@ -103,15 +152,21 @@ export function createLLMClient(config: PingpongConfig, options: LLMClientOption
           status: axiosError.response.status,
           data: axiosError.response.data
         });
-      } else if (axiosError.request) {
-        console.error('[LLM Client] No response from LLM API');
-      } else {
-        console.error('[LLM Client] Request error:', axiosError.message);
+        return {
+          type: 'api_error',
+          message: `LLM API error: ${axiosError.response.status}`
+        };
       }
       
-      return null;
+      console.error('[LLM Client] Unknown error:', error);
+      return {
+        type: 'unknown',
+        message: 'Unknown error occurred',
+        originalError: error
+      };
     }
   }
+
 
   return { submitReview };
 }

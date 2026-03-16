@@ -87,8 +87,9 @@ async function initializeComponents(): Promise<void> {
     
     // Start escalation server if enabled
     if (config.escalation.enabled) {
+      let escalationServer;
       try {
-        startEscalationServer({
+        escalationServer = startEscalationServer({
           port: config.escalation.port,
           sessionManager: sessionManager,
           resolveSessionCallback: (sessionId: string, feedback: string) => {

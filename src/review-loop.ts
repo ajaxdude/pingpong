@@ -1,9 +1,8 @@
 import { SessionManager } from './session-manager.js';
-import { createLLMClient } from './llm-client.js';
+import { createLLMClient, LLMClientError, LLMClientResult } from './llm-client.js';
 import { buildReviewPrompt } from './llm-prompt.js';
 import { loadPRD, loadGitDiff, loadAGENTS } from './context-gatherer.js';
-import { PingpongConfig, RequestReviewResult, ReviewStatus } from './types.js';
-
+import { PingpongConfig, RequestReviewResult, ReviewStatus, EscalationReason } from './types.js';
 /**
  * Context gatherer interface for collecting review context
  */
@@ -20,7 +19,7 @@ interface ContextGatherer {
  * LLM client interface for submitting reviews
  */
 interface LLMApiClient {
-  submitReview(prompt: string): Promise<{ status: string; feedback: string } | null>;
+  submitReview(prompt: string): Promise<LLMClientResult>;
 }
 
 /**
@@ -107,20 +106,45 @@ export class ReviewLoop {
       // Call LLM
       const llmResponse = await this.llmClient.submitReview(prompt);
 
-      if (!llmResponse) {
+      // Check if LLM response is an error
+      if ('type' in llmResponse) {
+        const error = llmResponse as LLMClientError;
+        
+        // Handle connection failures immediately - escalate to browser with setup instructions
+        if (error.type === 'connection_failed') {
+          status = 'escalated';
+          feedback = error.message;
+          const escalationReason: EscalationReason = 'connection_failed';
+          
+          // Update session with connection failure escalation
+          this.sessionManager.updateSession(session.id, {
+            status,
+            feedback,
+            reviewerType: 'llm',
+            escalationReason,
+          });
+          
+          // Immediate escalation - break out of loop
+          break;
+        }
+        
+        // Handle other LLM errors - escalate after retries are exhausted
+        const escalationReason: EscalationReason = 'llm_error';
         status = 'escalated';
-        feedback = 'Failed to get LLM response';
-
+        feedback = `LLM error: ${error.message}`;
+        
         // Update session with escalation status
         this.sessionManager.updateSession(session.id, {
           status,
           feedback,
           reviewerType: 'llm',
+          escalationReason,
         });
-
+        
         break;
       }
-
+      
+      // LLM response is successful - extract status and feedback
       status = llmResponse.status as ReviewStatus;
       feedback = llmResponse.feedback;
 

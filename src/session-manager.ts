@@ -6,7 +6,11 @@ import {
   RequestReviewResult,
   ReviewStatus,
   ReviewerType,
+  EscalationReason,
 } from './types.js';
+
+// Callback type for session updates
+type SessionUpdateCallback = (sessionId: string, session: ReviewSession) => void;
 
 interface SessionData {
   id: string;
@@ -17,7 +21,7 @@ interface SessionData {
   conversationHistory?: string[];
   llmFeedback?: string;
   humanFeedback?: string;
-  escalationReason?: string;
+  escalationReason?: EscalationReason;
   iterationCount: number;
   reviewerType?: ReviewerType;
   agentResolve?: (result: RequestReviewResult) => void;
@@ -28,7 +32,7 @@ interface SessionData {
 export class SessionManager {
   private sessionDir: string;
   private sessions: Map<string, SessionData>;
-
+  private sessionUpdateCallbacks: SessionUpdateCallback[] = [];
   constructor(sessionDir: string) {
     this.sessionDir = sessionDir;
     this.sessions = new Map();
@@ -159,6 +163,7 @@ export class SessionManager {
       status?: ReviewStatus;
       feedback?: string;
       reviewerType?: ReviewerType;
+      escalationReason?: EscalationReason;
     },
   ): void {
     const sessionData = this.sessions.get(sessionId);
@@ -171,6 +176,9 @@ export class SessionManager {
     }
     if (updates.reviewerType) {
       sessionData.reviewerType = updates.reviewerType;
+    }
+    if (updates.escalationReason) {
+      sessionData.escalationReason = updates.escalationReason;
     }
 
     // Update appropriate feedback field based on reviewer type
@@ -185,6 +193,16 @@ export class SessionManager {
     sessionData.updatedAt = new Date().toISOString();
     this.sessions.set(sessionId, sessionData);
     this.saveSessionToDisk(sessionId, sessionData);
+    
+    // Trigger callbacks for session updates
+    const updatedSession = this.toReviewSession(sessionData);
+    this.sessionUpdateCallbacks.forEach(callback => {
+      try {
+        callback(sessionId, updatedSession);
+      } catch (error) {
+        console.error('[Session Manager] Error in session update callback:', error);
+      }
+    });
   }
 
   incrementIteration(sessionId: string): void {

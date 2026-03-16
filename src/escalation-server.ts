@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -9,16 +9,17 @@ import { RequestReviewResult, ReviewStatus } from './types.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = resolve(__filename, '..');
 
-interface EscalationServerOptions {
-  port?: number;
-  sessionManager?: SessionManager | null;
-  resolveSessionCallback?: (sessionId: string, feedback: string) => void;
-}
-
 interface EscalationServer {
   start: () => Promise<express.Express>;
   stop: () => Promise<void>;
   port: number;
+  appInstance: express.Express | null;
+}
+
+interface EscalationServerOptions {
+  port?: number;
+  sessionManager?: SessionManager | null;
+  resolveSessionCallback?: (sessionId: string, feedback: string) => void;
 }
 
 let serverInstance: EscalationServer | null = null;
@@ -39,17 +40,19 @@ export function startEscalationServer(
   }
 
   const app = express();
+  
+  // Middleware setup
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
   // Middleware to set headers for all responses
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next) => {
     res.setHeader('X-Powered-By', 'Pingpong/Escalation-Server');
     next();
   });
 
   // Error handling middleware
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, next: any) => {
     console.error('[Escalation Server] Error:', err.message);
     res.status(500).json({
       error: 'Internal server error',
@@ -101,21 +104,40 @@ export function startEscalationServer(
       return;
     }
 
+    // Check if this is a connection failure - show setup page instead
+    if (session.escalationReason === 'connection_failed') {
+      try {
+        const templatePath = join(__dirname, '..', 'templates', 'setup.html');
+        let template = readFileSync(templatePath, 'utf-8');
+
+        // Replace endpoint in the template
+        const endpoint = process.env.PINGPONG_LLM_ENDPOINT || 'http://127.0.0.1:8080/v1/chat/completions';
+        template = template.replace(/\{\{endpoint\}\}/g, endpoint);
+
+        res.setHeader('Content-Type', 'text/html');
+        res.send(template);
+      } catch (err) {
+        console.error('[Escalation Server] Failed to render setup template:', err);
+        res.status(500).send(createErrorHTML('Failed to load setup page. Please ensure llama.cpp is running on port 8080.'));
+      }
+      return;
+    }
+
     try {
       const templatePath = join(__dirname, '..', 'templates', 'escalation.html');
       let template = readFileSync(templatePath, 'utf-8');
 
       // Simple template rendering
       template = template
-        .replace(/{{id}}/g, session.id)
-        .replace(/{{taskId}}/g, session.taskId)
-        .replace(/{{summary}}/g, session.summary || '')
-        .replace(/{{iterationCount}}/g, String(session.iterationCount))
-        .replace(/{{status}}/g, session.status || '')
-        .replace(/{{llmFeedback}}/g, session.llmFeedback || '')
-        .replace(/{{error}}/g, '')
-        .replace(/{{#error}}[\s\S]*?{{\/error}}/g, '')
-        .replace(/{{^error}}([\s\S]*?){{\/error}}/g, '$1');
+        .replace(/\{\{id\}\}/g, session.id)
+        .replace(/\{\{taskId\}\}/g, session.taskId)
+        .replace(/\{\{summary\}\}/g, session.summary || '')
+        .replace(/\{\{iterationCount\}\}/g, String(session.iterationCount))
+        .replace(/\{\{status\}\}/g, session.status || '')
+        .replace(/\{\{llmFeedback\}\}/g, session.llmFeedback || '')
+        .replace(/\{\{error\}\}/g, '')
+        .replace(/\{\{#error\}\}[\s\S]*?\{\{\/error\}\}/g, '')
+        .replace(/\{\{\^error\}\}([\s\S]*?)\{\{\/error\}\}/g, '$1');
 
       res.setHeader('Content-Type', 'text/html');
       res.send(template);
@@ -208,6 +230,7 @@ export function startEscalationServer(
       });
     },
     port,
+    appInstance: app,
   };
 
   appInstance = app;
