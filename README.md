@@ -12,11 +12,23 @@ This tool is proven to work and recommended to be used with [oh-my-pi](https://g
 curl -sSL https://raw.githubusercontent.com/ajaxdude/pingpong/master/install.sh | bash
 ```
 
-This single command will:
-- Clone the repo to `~/.omp/skills/pingpong/`
-- Install dependencies and build
-- Configure pingpong in your project automatically
-- Start the MCP server
+**What gets installed:**
+
+**1. Pingpong Skill** (`~/.omp/skills/pingpong/`)
+- Complete pingpong source code
+- Compiled JavaScript (dist/)
+- Node.js dependencies (node_modules/)
+
+**2. Agent Templates** (`~/.omp/agent/`)
+- `APPEND_SYSTEM.md` - Agent system prompt with review loop instructions
+- `LLAMACPP.md` - LLM configuration template for llama.cpp
+
+**3. MCP Configuration** (`~/.omp/agent/mcp.json`)
+- Adds pingpong server to existing MCP configuration
+- Points to `~/.omp/skills/pingpong/dist/index.js`
+
+**4. Project Config** (your current directory)
+- `pingpong.config.example.json` - Example configuration file
 
 ### Manual Installation
 
@@ -29,22 +41,6 @@ npm install && npm run build
 # Configure in your project root
 cp pingpong.config.example.json pingpong.config.json
 # Edit pingpong.config.json to set your LLM endpoint if needed (default: http://127.0.0.1:8080/v1/chat/completions)
-```
-
-## MCP Client Setup
-
-Add to your MCP client configuration:
-
-```json
-{
-  "mcpServers": {
-    "pingpong": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/pingpong/dist/index.js"]
-    }
-  }
-}
 ```
 
 ## Usage
