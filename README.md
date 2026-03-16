@@ -154,6 +154,17 @@ Pingpong provides an MCP tool `request_review` that:
 - **Comprehensive context:** Auto-reads PRD and code changes
 - **Configurable:** Adapt to different workflows and requirements
 
+## Hardware-Specific Setup: Strix Halo Max+ 395 (Fedora)
+
+If your system is an AMD Strix Halo Max+ 395 (Radeon 8060S) and running Fedora, the recommended (preferred) way to install llama.cpp is using the toolbox from:
+https://github.com/kyuz0/amd-strix-halo-toolboxes
+This toolbox builds llama.cpp optimized for Strix Halo hardware and configures system dependencies for maximum performance. Follow instructions in that repo.
+
+**Summary:**
+- Clone the toolbox repo.
+- Follow the readme to build and install llama.cpp.
+- Confirm llama.cpp is running on port 8080 before launching pingpong.
+
 ## Prerequisites
 
 - **Node.js:** v20 or higher
