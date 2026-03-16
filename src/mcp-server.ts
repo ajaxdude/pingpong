@@ -98,36 +98,16 @@ async function handleResolveSession(sessionId: string, feedback: string): Promis
   sessionManager.resolveSession(sessionId, feedback);
 }
 
-// Initialize with config
+// Initialize session manager with already-loaded config
 async function initializeServer(): Promise<void> {
+  const projectRoot = process.cwd();
+  const sessionDir = join(projectRoot, '.pingpong', 'sessions');
   try {
-    const projectRoot = process.cwd();
-    config = await loadConfig(projectRoot);
-    console.error(`[INFO] Config loaded successfully with escalation port ${config.escalation.port}`);
-
-    // Initialize session manager with config
-    const sessionDir = join(projectRoot, '.pingpong', 'sessions');
-    try {
-      sessionManager = new SessionManager(sessionDir);
-      console.error('[INFO] Session manager initialized successfully');
-    } catch (error) {
-      console.error('[WARN] Session manager initialization failed, continuing without it:', error);
-      sessionManager = null;
-    }
+    sessionManager = new SessionManager(sessionDir);
+    console.error('[INFO] Session manager initialized successfully');
   } catch (error) {
-    console.error('[WARN] Config loading failed, using defaults:', error);
-    console.error('[INFO] Using default configuration');
-
-    // Initialize session manager even if config fails
-    const projectRoot = process.cwd();
-    const sessionDir = join(projectRoot, '.pingpong', 'sessions');
-    try {
-      sessionManager = new SessionManager(sessionDir);
-      console.error('[INFO] Session manager initialized successfully');
-    } catch (initError) {
-      console.error('[WARN] Session manager initialization failed:', initError);
-      sessionManager = null;
-    }
+    console.error('[WARN] Session manager initialization failed, continuing without it:', error);
+    sessionManager = null;
   }
 }
 

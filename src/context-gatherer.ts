@@ -109,11 +109,11 @@ export function loadGitDiff(): string {
 }
 
 /**
- * Load agent contract from ~/.omp/agent/AGENTS.md
+ * Load agent contract from ~/.omp/agent/LLAMACPP.md
  * Returns the content or null if not found
  */
 export function loadAGENTS(): string | null {
-  const agentsPath = join(homedir(), '.omp', 'agent', 'AGENTS.md');
+  const agentsPath = join(homedir(), '.omp', 'agent', 'LLAMACPP.md');
   
   if (!existsSync(agentsPath)) {
     return null;
@@ -123,7 +123,7 @@ export function loadAGENTS(): string | null {
     const content = readFileSync(agentsPath, 'utf-8');
     return content;
   } catch (error) {
-    console.error(`[WARN] Failed to load AGENTS.md from ${agentsPath}:`, error);
+    console.error(`[WARN] Failed to load LLAMACPP.md from ${agentsPath}:`, error);
     return null;
   }
 }

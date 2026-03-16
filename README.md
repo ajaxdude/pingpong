@@ -1,206 +1,89 @@
-# Pingpong - Automated Code Review MCP (Save Premium Requests from GitHub Copilot)
-
-Automated review server for MCP agents (Oh My Pi, etc) that minimizes Github Copilot premium requests by using a local LLM (llama.cpp) to handle iterative reviews and escalate to human only if needed. Inspired by [copilot-leecher](https://github.com/yosebyte/copilot-leecher).
-
-**Why Pingpong?**
-- Every agent review loop goes to your local LLM, not the cloud. Zero cost for iteration, improvement, or rework.
-- Human escalation (web UI) happens only after 5 failed reviews or LLM errors, similar to copilot-leecher.
-- Enforces PRD-driven reviews: context, PRD, git diff, and agent history are always included.
-- Universal contract: all agent harnesses must use MCP request_review and get approval before shipping.
-
-**Hardware tip:** On AMD Strix Halo Max+ 395 (Fedora), build llama.cpp using [amd-strix-halo-toolboxes](https://github.com/kyuz0/amd-strix-halo-toolboxes) for maximum performance.
-
----
-
-
-To enable MCP review with pingpong for agents (in Oh My Pi, etc.), follow these steps:
-
-## 1. APPEND_SYSTEM.md Setup (Global Agent Rules)
-
-- If you DO NOT have `~/.omp/agent/APPEND_SYSTEM.md`:
-  - Copy `templates/APPEND_SYSTEM.md` from this repo to `~/.omp/agent/APPEND_SYSTEM.md`.
-  - This file establishes the global contract: always use `request_review` after completing work; all reviews must be approved before shipping.
-  - No review loop = no merge, no completion.
-- If you ALREADY HAVE `~/.omp/agent/APPEND_SYSTEM.md`:
-  - Open your existing file.
-  - Append the "### 3. Review loop via pingpong" section (found in `templates/APPEND_SYSTEM.md` or below) to your file if not present.
-  - Ensure the section describing review loop rules matches the pingpong workflow.
-  - If your file only has "copilot-leecher" review, add or replace it with pingpong details as below:
-
-```markdown
-### 3. Review loop via pingpong
-
-After completing all work, you MUST call the `request_review` tool:
-- `taskId`: format `[type]-[date]-[seq]` — e.g. `feature-20260314-001`, `fix-20260314-001`, `refactor-20260314-001`
-- `summary`: 2–3 sentences covering what changed, why, and any assumptions made
-- `conversationHistory` (optional): Include full conversation if it provides important context
-- `details` (optional): Any additional technical context
-
-**What pingpong reviews:**
-- Your task summary and details
-- Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
-- Git diff (auto-read: unstaged + staged changes via `git diff HEAD`)
-- Conversation history (if provided)
-- Built-in comprehensive criteria: correctness, quality, security, performance, maintainability, documentation
-
-**How automated review works:**
-Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation. The local LLM responds with:
-- `STATUS: approved` → stop immediately, confirm completion
-- `STATUS: needs_revision` → read the feedback, improve your work, call `request_review` again
-
-**Escalation to human (after 5 iterations or LLM errors):**
-- Web UI opens at `http://127.0.0.1:3456` with full session history
-- Human reviews and provides feedback
-- "ok" / "approved" / "lgtm" → task complete
-- Any other feedback → improve and call `request_review` again
-
-**Hard rules:**
-- NEVER finish a task without an approved review
-- NEVER skip the review step even if the change seems trivial
-- Do not open a new prompt to handle feedback — all iteration stays in the same session
-- If no PRD is detected, verify `pingpong.config.json` is configured correctly
-
-**Review iteration:**
-- Automated: Up to 5 iterations with local LLM
-- After 5: Escalates to human via web UI
-- Continue improving until approved (by LLM or human)
-```
-
-## 2. AGENTS.md Setup (Local LLM Prompt)
-
-- If you do NOT have `~/.omp/agent/AGENTS.md`:
-  - Copy `templates/AGENTS.md` from this repo to `~/.omp/agent/AGENTS.md`.
-- If you ALREADY HAVE `~/.omp/agent/AGENTS.md`:
-  - Add the Pingpong instructions to your existing file; do not remove other rules unless they conflict.
-
-**Pingpong Local LLM Review Instructions:** See below or `templates/AGENTS.md`.
-```markdown
-# Pingpong Local LLM Review Instructions
-
-You are an expert code reviewer. Your task is to evaluate the agent's work against the project PRD and comprehensive review criteria.
-
-## Review Process
-1. **Read the provided context:**
-   - Task summary: what the agent did
-   - Project PRD: requirements and specifications
-   - Git diff: actual code changes
-   - Conversation history: context and decisions
-   - Built-in review criteria: your evaluation framework
-2. **Evaluate systematically:**
-   - Correctness: Does it work? Edge cases handled?
-   - Code Quality: Idiomatic, clear, maintainable?
-   - Security: No vulnerabilities, proper validation?
-   - Performance: Efficient, no obvious anti-patterns?
-   - Maintainability: Single responsibility, DRY, clear abstractions?
-   - Documentation: Docstrings, comments for non-obvious logic?
-3. **Check PRD alignment:**
-   - Does the implementation match requirements?
-   - Are all acceptance criteria met?
-   - Any missing features or behaviors?
-4. **Provide feedback:**
-   - If approved: Output exactly `STATUS: approved` followed by optional praise
-   - If needs revision: Output exactly `STATUS: needs_revision` followed by specific, actionable feedback
-   - Be specific: what to fix, why it matters, how to fix it
-   - Prioritize: critical issues first, minor improvements last
-
-## Response Format
-You MUST start your response with either:
-```
-STATUS: approved
-<optional feedback>
-```
-OR
-```
-STATUS: needs_revision
-<specific feedback on what to fix>
-```
-
-## Review Standards
-- Be thorough but fair
-- Explain why something is wrong, not just that it's wrong
-- Suggest concrete improvements
-- Recognize good work when you see it
-- Consider the agent's constraints (single request, iteration limits)
-```
----
 # Pingpong - Automated Code Review MCP
 
-Pingpong is an MCP (Model Context Protocol) server that provides automated code review using a local LLM instead of human review. Inspired by copilot-leecher, pingpong replaces the human-in-the-loop with an automated review system powered by llama.cpp, enabling agents to iterate on work within a single premium request while maintaining thorough code quality standards.
+Automated code review using a local LLM (llama.cpp) instead of human review. Inspired by [copilot-leecher](https://github.com/yosebyte/copilot-leecher).
 
-## Key Differentiators from Copilot-Leecher
+**Why Pingpong?**
+- Every agent review loop goes to your local LLM, not the cloud. Zero cost for iteration.
+- Human escalation (web UI) happens only after 5 failed reviews or LLM errors.
+- Enforces PRD-driven reviews: context, PRD, git diff, and agent history are always included.
+- Universal contract: all agent harnesses must use MCP `request_review` and get approval before shipping.
 
-| Aspect | Copilot-Leecher | Pingpong |
-|---|---|---|
-| Reviewer | Human via web UI | Local LLM (llama.cpp) |
-| Review Trigger | Every request | Every request |
-| Escalation | N/A (always human) | After 5 completed iterations (escalates on 6th call) or LLM error |
-| Context | Summary only | Summary + PRD + git diff + conversation history |
-| Web UI | Always running (port 3456) | Only during escalation |
+---
 
-## Problem Statement
+## 🤖 Installation for LLM (Agents)
 
-GitHub Copilot charges by premium requests (300/month on Pro), not by tokens. Follow-up prompts consume additional requests. While copilot-leecher solves this by converting follow-ups into free MCP tool calls with human review, this still requires human intervention for every task.
+**For Oh My Pi agents, copy this single block:**
 
-**Opportunity:** Automate the review process using a local LLM while maintaining:
-- Comprehensive code quality standards
-- Alignment with project requirements (PRD)
-- Human oversight as a safety net (escalation after failures)
+```json
+{
+  "mcpServers": {
+    "pingpong": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/papa/ai/stack/pingpong/dist/index.js"]
+    }
+  }
+}
+```
 
-## Solution Overview
+**Then install the agent template:**
+```bash
+cp /home/papa/ai/stack/pingpong/templates/APPEND_SYSTEM.md ~/.omp/agent/APPEND_SYSTEM.md
+```
 
-Pingpong provides an MCP tool `request_review` that:
-1. Captures task context (summary, optional details, conversation history)
-2. Automatically reads project state (PRD, git diff)
-3. Sends comprehensive context to local LLM (llama.cpp on port 8080)
-4. Receives structured feedback (STATUS: approved/needs_revision)
-5. Returns feedback to agent for iteration
-6. Escalates to human after 5 completed iterations (on the 6th request_review call) or on LLM errors
+---
 
-### Benefits
+## 🧑 Installation for Humans
 
-- **Zero premium request cost for iterations:** All review loops happen via MCP tool results
-- **Thorough reviews:** Local LLM evaluates against PRD + strict criteria
-- **Human oversight:** Escalation to web UI when automation fails
-- **Comprehensive context:** Auto-reads PRD and code changes
-- **Configurable:** Adapt to different workflows and requirements
+### Prerequisites
+- Node.js v20 or higher
+- llama.cpp running on port 8080 (default endpoint)
 
-## Hardware-Specific Setup: Strix Halo Max+ 395 (Fedora)
+### Quick Start
 
-If your system is an AMD Strix Halo Max+ 395 (Radeon 8060S) and running Fedora, the recommended (preferred) way to install llama.cpp is using the toolbox from:
-https://github.com/kyuz0/amd-strix-halo-toolboxes
-This toolbox builds llama.cpp optimized for Strix Halo hardware and configures system dependencies for maximum performance. Follow instructions in that repo.
+```bash
+# Clone and install
+git clone https://github.com/your-repo/pingpong.git
+cd pingpong
+npm install && npm run build
 
-**Summary:**
-- Clone the toolbox repo.
-- Follow the readme to build and install llama.cpp.
-- Confirm llama.cpp is running on port 8080 before launching pingpong.
+# Configure in your project root
+cp pingpong.config.example.json pingpong.config.json
+# Edit pingpong.config.json to set your LLM endpoint
 
-## Prerequisites
+# Configure MCP client (see below)
+```
 
-- **Node.js:** v20 or higher
-- **llama.cpp:** Must be running on port 8080 (default endpoint)
-  - Install and setup: https://github.com/ggerganov/llama.cpp
-  - Ensure the server is running: `http://127.0.0.1:8080/v1/chat/completions`
+### MCP Client Setup
 
-## Installation
+Add to your MCP client configuration:
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd pingpong
-   ```
+```json
+{
+  "mcpServers": {
+    "pingpong": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/path/to/pingpong/dist/index.js"]
+    }
+  }
+}
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+**Example for Oh My Pi:**
+```json
+{
+  "mcpServers": {
+    "pingpong": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/home/papa/ai/stack/pingpong/dist/index.js"]
+    }
+  }
+}
+```
 
-3. Build the project:
-   ```bash
-   npm run build
-   ```
-
-## Configuration
+### Configuration
 
 Create `pingpong.config.json` in your project root:
 
@@ -234,101 +117,69 @@ Create `pingpong.config.json` in your project root:
 - `PINGPONG_LLM_TIMEOUT` - Override timeout (seconds)
 - `PINGPONG_PRD_PATH` - Override PRD path
 
-## Usage
+---
 
-### MCP Client Setup
+## 🔄 How It Works
 
-Configure your MCP client to use pingpong:
+1. Agent completes work and calls `request_review(taskId, summary, details?, conversationHistory?)`
+2. Pingpong creates session and auto-reads:
+   - Project PRD (from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
+   - Git diff (`git diff HEAD`)
+   - Conversation history (if provided)
+3. Sends comprehensive context to local LLM (llama.cpp:8080)
+4. Receives structured feedback:
+   - `STATUS: approved` → task complete
+   - `STATUS: needs_revision` → agent improves and retries
+5. After 5 iterations or LLM error, escalates to human via web UI at `http://localhost:3456`
 
-```json
-{
-  "mcpServers": {
-    "pingpong": {
-      "command": "node",
-      "args": ["/path/to/pingpong/dist/index.js"],
-      "env": {}
-    }
-  }
-}
+---
+
+## 📋 Agent Contract
+
+Pingpong provides `APPEND_SYSTEM.md` template for installation at `~/.omp/agent/APPEND_SYSTEM.md`:
+
+```markdown
+### 3. Review loop via pingpong
+
+After completing all work, you MUST call the `request_review` tool:
+- `taskId`: format `[type]-[date]-[seq]` — e.g. `feature-20260314-001`
+- `summary`: 2–3 sentences covering what changed, why, and assumptions
+- `conversationHistory` (optional): Include full conversation if it provides important context
+- `details` (optional): Additional technical context
+
+**What pingpong reviews:**
+- Your task summary and details
+- Project PRD (auto-detected)
+- Git diff (unstaged + staged changes via `git diff HEAD`)
+- Conversation history (if provided)
+- Built-in criteria: correctness, quality, security, performance, maintainability, documentation
+
+**How automated review works:**
+Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation. The local LLM responds with:
+- `STATUS: approved` → stop immediately, confirm completion
+- `STATUS: needs_revision` → read the feedback, improve your work, call `request_review` again
+
+**Escalation to human (after 5 iterations or LLM errors):**
+- Web UI opens at `http://127.0.0.1:3456` with full session history
+- Human reviews and provides feedback
+- `"ok"` / `"approved"` / `"lgtm"` → task complete
+- Any other feedback → improve and call `request_review` again
+
+**Hard rules:**
+- NEVER finish a task without an approved review
+- NEVER skip the review step even if the change seems trivial
+- Do not open a new prompt to handle feedback — all iteration stays in the same session
+- If no PRD is detected, verify `pingpong.config.json` is configured correctly
+
+**Review iteration:**
+- Automated: Up to 5 iterations with local LLM
+- After 5: Escalates to human via web UI
+- Continue improving until approved (by LLM or human)
 ```
 
-### Escalation Server
+---
 
-When automation fails (after 5 iterations or LLM errors), pingpong starts an HTTP server:
-
-- **Web UI:** `http://localhost:3456`
-- **Auto-opens browser** by default (configurable)
-- **Human provides feedback** via the web interface
-
-### HTTP API (Monitoring)
-
-Available when escalation server is running:
-
-- `GET /api/sessions` - List all sessions
-- `GET /api/sessions/pending` - List pending sessions
-- `GET /api/sessions/:id` - Get session details
-- `GET /api/health` - Health check
-
-## Testing
-
-Run tests:
-
-```bash
-# All tests
-npm test
-
-# Unit tests only
-npm run test:unit
-
-# Integration tests only
-npm run test:integration
-
-# Watch mode
-npm run watch
-```
-
-## Troubleshooting
-
-### LLM Connection Issues
-
-**Error:** Connection refused to http://127.0.0.1:8080
-
-**Solution:**
-- Verify llama.cpp is running: `curl http://127.0.0.1:8080/v1/models`
-- Check llama.cpp is started with correct port: `llama-server -p 8080`
-- Verify no firewall blocking the connection
-
-### PRD Not Detected
-
-**Issue:** Pingpong can't find your PRD
-
-**Solution:**
-- Ensure PRD exists at one of: `./docs/PRD.md`, `./PRD.md`, or `./README.md`
-- Or configure `pingpong.config.json` with custom PRD paths
-
-### Iteration Limit Exceeded
-
-**Issue:** After 5 iterations, pingpong escalates to human
-
-**Solution:**
-- Review the feedback and improve your implementation
-- The human escalation UI opens automatically (if `autoOpenBrowser: true`)
-- If disabled, open `http://localhost:3456` manually
-
-### TypeScript Compilation Errors
-
-**Solution:**
-```bash
-# Check for TypeScript errors
-npx tsc --noEmit
-
-# Rebuild
-npm run build
-```
-
-## Architecture
-
-### System Components
+## 🏗️ Architecture
 
 ```
 ┌─────────────────┐
@@ -374,236 +225,64 @@ npm run build
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow
+---
 
-**Normal Flow (Automated Review):**
-```
-Agent → request_review(taskId, summary, details?, conversationHistory?)
-  → Pingpong creates session
-  → PRD locator finds project PRD
-  → Git diff reader reads git diff HEAD
-  → LLM client builds prompt:
-    - Task summary
-    - PRD content
-    - Git diff
-    - Conversation history (if provided)
-    - Built-in review criteria (correctness, quality, security, performance, maintainability, documentation)
-  → Calls llama.cpp:8080/v1/chat/completions
-  → Parses response: "STATUS: approved/needs_revision" + feedback
-  → If approved: Returns success to agent
-  → If needs_revision: Returns feedback, agent improves, retries
-  → (Loop up to 5 iterations)
+## 🧪 Testing
+
+```bash
+# All tests
+npm test
+
+# Unit tests only
+npm run test:unit
+
+# Integration tests only
+npm run test:integration
+
+# Watch mode
+npm run watch
 ```
 
-**Escalation Flow:**
-```
-Agent → request_review (6th iteration OR LLM error after retry)
-  → Pingpong starts escalation server on port 3456
-  → Auto-opens browser to localhost:3456?session=<id>
-  → Human reviews session history and feedback
-  → Human submits feedback via web UI
-  → Feedback returned to agent as tool result
-  → Agent improves and calls request_review again
-```
+---
 
-## Built-in Review Criteria
+## 🔧 Troubleshooting
 
-The local LLM evaluates code against these comprehensive criteria:
+### LLM Connection Issues
+**Error:** Connection refused to http://127.0.0.1:8080
 
-### 1. Correctness
-- Code compiles/runs without errors
-- Logic matches requirements in PRD
-- No obvious bugs or logic errors
-- Edge cases are handled
+**Solution:**
+- Verify llama.cpp is running: `curl http://127.0.0.1:8080/v1/models`
+- Check llama.cpp is started with correct port: `llama-server -p 8080`
+- Verify no firewall blocking the connection
 
-### 2. Code Quality
-- Follows language idioms and best practices
-- Clear naming (variables, functions, classes)
-- Proper error handling
-- No dead code or commented-out code
-- Appropriate use of data structures and algorithms
+### PRD Not Detected
+**Issue:** Pingpong can't find your PRD
 
-### 3. Security
-- No hardcoded secrets or credentials
-- Input validation and sanitization
-- Proper use of secure APIs
-- No SQL injection, XSS, or similar vulnerabilities
-- Least privilege principles
+**Solution:**
+- Ensure PRD exists at one of: `./docs/PRD.md`, `./PRD.md`, or `./README.md`
+- Or configure `pingpong.config.json` with custom PRD paths
 
-### 4. Performance
-- No obvious performance anti-patterns
-- Efficient algorithms for data scale
-- No unnecessary expensive operations in loops
-- Resource cleanup (connections, file handles, memory)
+### Iteration Limit Exceeded
+**Issue:** After 5 iterations, pingpong escalates to human
 
-### 5. Maintainability
-- Single responsibility per function/module
-- DRY principle (don't repeat yourself)
-- Clear separation of concerns
-- Appropriate abstraction level
-- Comments for non-obvious logic
+**Solution:**
+- Review the feedback and improve your implementation
+- The human escalation UI opens automatically (if `autoOpenBrowser: true`)
+- If disabled, open `http://localhost:3456` manually
 
-### 6. Documentation
-- Public functions have docstrings/JSDoc
-- Complex logic is explained
-- API contracts are clear
-- Usage examples if appropriate
+### TypeScript Compilation Errors
+**Solution:**
+```bash
+# Check for TypeScript errors
+npx tsc --noEmit
 
-## Local LLM Integration
-
-### LLM Request Format
-
-```json
-{
-  "model": "default",
-  "messages": [
-    {
-      "role": "system",
-      "content": "<Built-in review criteria from AGENTS.md>"
-    },
-    {
-      "role": "user",
-      "content": "<Review request with task summary, PRD, git diff, conversation history>"
-    }
-  ],
-  "temperature": 0.3,
-  "max_tokens": 2000
-}
+# Rebuild
+npm run build
 ```
 
-### LLM Response Format
+---
 
-The local LLM MUST respond with one of these formats:
-
-**Approved:**
-```
-STATUS: approved
-<optional feedback or praise>
-```
-
-**Needs Revision:**
-```
-STATUS: needs_revision
-<specific, actionable feedback on what to fix>
-```
-
-### Error Handling
-
-| Error Type | Handling |
-|---|---|
-| Connection timeout (1800s default) | Retry once, then escalate to human |
-| Connection refused | Retry once, then escalate to human |
-| Invalid response (no STATUS:) | Log error, escalate to human |
-| Parse error | Log error, escalate to human |
-
-## Agent Contract
-
-Pingpong provides `APPEND_SYSTEM.md` template for installation at `~/.omp/agent/APPEND_SYSTEM.md`:
-
-```markdown
-### 3. Review loop via pingpong
-
-After completing all work, you MUST call the `request_review` tool:
-- `taskId`: format `[type]-[date]-[seq]` — e.g. `feature-20260314-001`, `fix-20260314-001`, `refactor-20260314-001`
-- `summary`: 2–3 sentences covering what changed, why, and any assumptions made
-- `conversationHistory` (optional): Include full conversation if it provides important context
-- `details` (optional): Any additional technical context
-
-**What pingpong reviews:**
-- Your task summary and details
-- Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
-- Git diff (auto-read: unstaged + staged changes via `git diff HEAD`)
-- Conversation history (if provided)
-- Built-in comprehensive criteria: correctness, quality, security, performance, maintainability, documentation
-
-**How automated review works:**
-Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation. The local LLM responds with:
-- `STATUS: approved` → stop immediately, confirm completion
-- `STATUS: needs_revision` → read the feedback, improve your work, call `request_review` again
-
-**Escalation to human (after 5 iterations or LLM errors):**
-- Web UI opens at `http://127.0.0.1:3456` with full session history
-- Human reviews and provides feedback
-- `"ok"` / `"approved"` / `"lgtm"` → task complete
-- Any other feedback → improve and call `request_review` again
-
-**Hard rules:**
-- NEVER finish a task without an approved review
-- NEVER skip the review step even if the change seems trivial
-- Do not open a new prompt to handle feedback — all iteration stays in the same session
-- If no PRD is detected, verify `pingpong.config.json` is configured correctly
-
-**Review iteration:**
-- Automated: Up to 5 iterations with local LLM
-- After 5: Escalates to human via web UI
-- Continue improving until approved (by LLM or human)
-```
-
-## Local LLM System Prompt
-
-Pingpong provides `AGENTS.md` for local LLM context (installed at `~/.omp/agent/AGENTS.md`):
-
-```markdown
-# Pingpong Local LLM Review Instructions
-
-You are an expert code reviewer. Your task is to evaluate the agent's work against the project PRD and comprehensive review criteria.
-
-## Review Process
-
-1. **Read the provided context:**
-   - Task summary: what the agent did
-   - Project PRD: requirements and specifications
-   - Git diff: actual code changes
-   - Conversation history: context and decisions
-   - Built-in review criteria: your evaluation framework
-
-2. **Evaluate systematically:**
-   - Correctness: Does it work? Edge cases handled?
-   - Code Quality: Idiomatic, clear, maintainable?
-   - Security: No vulnerabilities, proper validation?
-   - Performance: Efficient, no obvious anti-patterns?
-   - Maintainability: Single responsibility, DRY, clear abstractions?
-   - Documentation: Docstrings, comments for non-obvious logic?
-
-3. **Check PRD alignment:**
-   - Does the implementation match requirements?
-   - Are all acceptance criteria met?
-   - Any missing features or behaviors?
-
-4. **Provide feedback:**
-   - If approved: Output exactly `STATUS: approved` followed by optional praise
-   - If needs revision: Output exactly `STATUS: needs_revision` followed by specific, actionable feedback
-   - Be specific: what to fix, why it matters, how to fix it
-   - Prioritize: critical issues first, minor improvements last
-
-## Response Format
-
-You MUST start your response with either:
-
-```
-STATUS: approved
-<optional feedback>
-```
-
-OR
-
-```
-STATUS: needs_revision
-<specific feedback on what to fix>
-```
-
-## Review Standards
-
-- Be thorough but fair
-- Explain why something is wrong, not just that it's wrong
-- Suggest concrete improvements
-- Recognize good work when you see it
-- Consider the agent's constraints (single request, iteration limits)
-```
-
-## Implementation
-
-### Project Structure
+## 📦 Project Structure
 
 ```
 pingpong/
@@ -620,12 +299,14 @@ pingpong/
 │   └── integration/             # Integration tests
 ├── templates/
 │   ├── APPEND_SYSTEM.md         # Agent installation template
-│   └── AGENTS.md                # LLM system prompt template
+│   └── LLAMACPP.md                # LLM system prompt template
 ├── dist/                        # Compiled output
 ├── pingpong.config.example.json # Example configuration
 └── package.json
 ```
 
-## License
+---
+
+## 📄 License
 
 MIT License

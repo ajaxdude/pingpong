@@ -126,7 +126,7 @@ describe('llm-prompt', () => {
       expect(prompt).not.toContain('# GIT DIFF');
     });
 
-    it('includes AGENTS.md when provided', async () => {
+    it('includes LLAMACPP.md when provided', async () => {
       const mockPRD = '# Test PRD';
       const mockAgents = '# Agent Contract\n\nThis is the agent contract.';
       
@@ -145,7 +145,7 @@ describe('llm-prompt', () => {
         'Test task'
       );
 
-      expect(prompt).toContain('# AGENT CONTRACT (AGENTS.md)');
+      expect(prompt).toContain('# AGENT CONTRACT (LLAMACPP.md)');
       expect(prompt).toContain('Agent Contract');
     });
 
@@ -303,7 +303,7 @@ describe('llm-prompt', () => {
       expect(prompt).toContain('Original size: 101KB.]');
     });
 
-    it('truncates large AGENTS.md content', async () => {
+    it('truncates large LLAMACPP.md content', async () => {
       const mockPRD = '# Test PRD';
       const largeAgents = '# Agent Contract\n\n' + 'x'.repeat(30 * 1024);
       
@@ -372,7 +372,7 @@ describe('llm-prompt', () => {
       expect(prompt).toContain('Test Project');
       expect(prompt).toContain('# GIT DIFF');
       expect(prompt).toContain(testDiff);
-      expect(prompt).toContain('# AGENT CONTRACT (AGENTS.md)');
+      expect(prompt).toContain('# AGENT CONTRACT (LLAMACPP.md)');
       expect(prompt).toContain('Agent Contract');
     });
   });

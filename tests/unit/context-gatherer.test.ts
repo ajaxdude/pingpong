@@ -253,8 +253,8 @@ describe('context-gatherer', () => {
   });
 
   describe('loadAGENTS', () => {
-    it('loads AGENTS.md from default location', async () => {
-      const agentsPath = '/tmp/testhome/testuser/.omp/agent/AGENTS.md';
+    it('loads LLAMACPP.md from default location', async () => {
+      const agentsPath = '/tmp/testhome/testuser/.omp/agent/LLAMACPP.md';
       const content = '# Agent Contract\n\nThis is the agent contract.';
       
       // Create the directory and file
@@ -268,9 +268,9 @@ describe('context-gatherer', () => {
       expect(result).toBe(content);
     });
 
-    it('returns null when AGENTS.md not found', async () => {
+    it('returns null when LLAMACPP.md not found', async () => {
       // Make sure the directory doesn't exist
-      const agentsPath = '/tmp/testhome/testuser/.omp/agent/AGENTS.md';
+      const agentsPath = '/tmp/testhome/testuser/.omp/agent/LLAMACPP.md';
       const dirPath = dirname(agentsPath);
       try {
         rmSync(dirPath, { recursive: true, force: true });

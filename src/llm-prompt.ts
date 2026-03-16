@@ -42,7 +42,7 @@ export function buildReviewPrompt(
     sections.push(gitDiffSection);
   }
 
-  // 3. AGENTS.md Section
+  // 3. LLAMACPP.md Section
   const agentsSection = buildAGENTSSection(agentsContent);
   if (agentsSection) {
     sections.push(agentsSection);
@@ -91,7 +91,7 @@ function buildGitDiffSection(gitDiff: string): string | null {
 }
 
 /**
- * Build AGENTS.md section
+ * Build LLAMACPP.md section
  */
 function buildAGENTSSection(agentsContent: string | null): string | null {
   if (!agentsContent) {
@@ -99,7 +99,7 @@ function buildAGENTSSection(agentsContent: string | null): string | null {
   }
 
   const truncated = truncateContent(agentsContent, MAX_SECTION_LENGTH);
-  return `# AGENT CONTRACT (AGENTS.md)\n\n${truncated}`;
+  return `# AGENT CONTRACT (LLAMACPP.md)\n\n${truncated}`;
 }
 
 /**
