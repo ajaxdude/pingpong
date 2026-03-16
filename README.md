@@ -10,28 +10,6 @@ Automated code review using a local LLM (llama.cpp) instead of human review. Ins
 
 ---
 
-## 🤖 Installation for LLM (Agents)
-
-**For Oh My Pi agents, copy this single block:**
-
-```json
-{
-  "mcpServers": {
-    "pingpong": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/home/papa/ai/stack/pingpong/dist/index.js"]
-    }
-  }
-}
-```
-
-**Then install the agent template:**
-```bash
-cp /home/papa/ai/stack/pingpong/templates/APPEND_SYSTEM.md ~/.omp/agent/APPEND_SYSTEM.md
-```
-
----
 
 ## 🧑 Installation for Humans
 
