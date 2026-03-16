@@ -61,7 +61,34 @@ Add to your MCP client configuration:
 }
 ```
 
+<<<<<<< HEAD
 ### Configuration
+=======
+- **Node.js:** v20 or higher
+- **llama.cpp:** Must be running on port 8080 (default endpoint)
+  - Install and setup: https://github.com/ggerganov/llama.cpp
+  - Ensure the server is running: `http://127.0.0.1:8080/v1/chat/completions`
+
+## Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ajaxdude/pingpong.git
+   cd pingpong
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the project:
+   ```bash
+   npm run build
+   ```
+
+## Configuration
+>>>>>>> 0c9986d (docs: update repository URL in README)
 
 Create `pingpong.config.json` in your project root:
 
