@@ -1,16 +1,24 @@
 # Pingpong
 
-Automated code review using a local LLM (llama.cpp) instead of cloud APIs. Zero cost for unlimited iterations.
+**Save on GitHub Copilot queries by using local LLM instead of cloud APIs.**
 
-## Why Pingpong?
-
-- **Local LLM**: Every review goes to your local llama.cpp instance instead of paid cloud APIs
-- **PRD-Driven**: Auto-detects and includes project PRD, git diff, and conversation history in every review
-- **Agent Contract**: Enforces review approval before agents can mark tasks complete
-- **Human Fallback**: Escalates to web UI after 5 failed reviews or LLM errors
-- **Connection-Failure Handling**: Auto-detects when llama.cpp isn't running and shows setup instructions
+This tool is proven to work and recommended to be used with [oh-my-pi](https://github.com/can1357/oh-my-pi). Inspired by [Copilot-Leecher](https://github.com/xiangxiaobo/Copilot-Leecher).
 
 ## Quick Start
+
+### For Oh-My-Pi Users
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ajaxdude/pingpong/master/install.sh | bash
+```
+
+This single command will:
+- Clone the repo to `~/.omp/skills/pingpong/`
+- Install dependencies and build
+- Configure pingpong in your project automatically
+- Start the MCP server
+
+### Manual Installation
 
 ```bash
 # Install
@@ -18,7 +26,7 @@ git clone https://github.com/ajaxdude/pingpong.git
 cd pingpong
 npm install && npm run build
 
-# Configure
+# Configure in your project root
 cp pingpong.config.example.json pingpong.config.json
 # Edit pingpong.config.json to set your LLM endpoint if needed (default: http://127.0.0.1:8080/v1/chat/completions)
 ```
@@ -122,16 +130,6 @@ llama-server -p 8080 -m path/to/model.gguf
 # Check and rebuild
 npx tsc --noEmit
 npm run build
-```
-
-## Architecture
-
-```
-Agent → MCP Server → Review Loop → LLM Client → llama.cpp
-                                ↓
-                         Session Manager
-                                ↓
-                         Escalation Server (Express) → Browser UI
 ```
 
 ## License
