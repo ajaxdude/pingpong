@@ -109,40 +109,47 @@ if [ ! -f "${MCP_CONFIG}" ]; then
 EOF
     echo "✅ Created MCP configuration with pingpong server"
 else
-    # mcp.json exists - check if running interactively
+    # mcp.json exists - try interactive, fallback to automatic
     if [ -t 0 ]; then
-        # Running interactively (terminal input available)
+        # Try interactive mode with timeout
         echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
         echo ""
-        echo "Choose an option:"
+        echo "Choose an option (will auto-select option 1 in 5 seconds):"
         echo "  1) Add pingpong to existing configuration (recommended)"
         echo "  2) Replace entire MCP configuration"
         echo "  3) Skip MCP configuration"
         echo ""
-        read -p "Enter choice (1-3): " choice
-
-        case $choice in
-            1)
-                echo "➕ Adding pingpong to existing MCP configuration..."
-                add_pingpong_to_config
-                ;;
-            2)
-                echo "🔄 Replacing MCP configuration..."
-                replace_config
-                ;;
-            3)
-                echo "⏭️  Skipping MCP configuration"
-                echo "   You can manually add pingpong to ${MCP_CONFIG} later"
-                ;;
-            *)
-                echo "❌ Invalid choice. Skipping MCP configuration"
-                ;;
-        esac
+        
+        # Read with timeout (requires bash 4+)
+        if read -t 5 -p "Enter choice (1-3) [default: 1]: " choice; then
+            case $choice in
+                1|"")
+                    echo "➕ Adding pingpong to existing MCP configuration..."
+                    add_pingpong_to_config
+                    ;;
+                2)
+                    echo "🔄 Replacing MCP configuration..."
+                    replace_config
+                    ;;
+                3)
+                    echo "⏭️  Skipping MCP configuration"
+                    echo "   You can manually add pingpong to ${MCP_CONFIG} later"
+                    ;;
+                *)
+                    echo "❌ Invalid choice. Adding pingpong to existing configuration..."
+                    add_pingpong_to_config
+                    ;;
+            esac
+        else
+            # Timeout or no input - use default
+            echo ""
+            echo "⏱️  No input received - using default option (add to existing config)"
+            add_pingpong_to_config
+        fi
     else
-        # Running non-interactively (piped input)
+        # No terminal - automatic mode
         echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
-        echo "📋 Running in non-interactive mode - adding pingpong to existing configuration..."
-        echo "   (To run interactively: download script and run directly)"
+        echo "📋 Running in automatic mode - adding pingpong to existing configuration..."
         add_pingpong_to_config
     fi
 fi
