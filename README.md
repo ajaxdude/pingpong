@@ -1,18 +1,17 @@
 # Pingpong - Automated Code Review MCP (Save Premium Requests from GitHub Copilot)
 
-**Automated code review for MCP agents, designed to minimize GitHub Copilot premium requests using a local LLM (llama.cpp). Inspired by copilot-leecher.**
+Automated review server for MCP agents (Oh My Pi, etc) that minimizes Github Copilot premium requests by using a local LLM (llama.cpp) to handle iterative reviews and escalate to human only if needed. Inspired by [copilot-leecher](https://github.com/yosebyte/copilot-leecher).
 
-Pingpong is an MCP (Model Context Protocol) review server that enables agents to iterate on their work without burning Copilot premium request quota. Every review loop happens via a local LLM instead of a human reviewer:
-- Automated reviews (up to 5): each agent request triggers evaluation by a local LLM (llama.cpp) against PRD, code diff, and built-in criteria.
-- **Zero premium request cost:** follow-up improvements, refactors, and fixes cost nothing until human escalation.
-- **Human escalation:** after 5 incomplete attempts or LLM errors, pingpong starts a web UI for manual feedback, keeping you in control only when automation fails.
-- Inspired by [copilot-leecher](https://github.com/yosebyte/copilot-leecher): all agent review iterations are free, human requests are rare, and PRD/context are always enforced.
+**Why Pingpong?**
+- Every agent review loop goes to your local LLM, not the cloud. Zero cost for iteration, improvement, or rework.
+- Human escalation (web UI) happens only after 5 failed reviews or LLM errors, similar to copilot-leecher.
+- Enforces PRD-driven reviews: context, PRD, git diff, and agent history are always included.
+- Universal contract: all agent harnesses must use MCP request_review and get approval before shipping.
 
-**Ideal for Oh My Pi and any MCP-compatible agent system.**
-
+**Hardware tip:** On AMD Strix Halo Max+ 395 (Fedora), build llama.cpp using [amd-strix-halo-toolboxes](https://github.com/kyuz0/amd-strix-halo-toolboxes) for maximum performance.
 
 ---
-**Agent Integration and LLM Prompt Setup**
+
 
 To enable MCP review with pingpong for agents (in Oh My Pi, etc.), follow these steps:
 
