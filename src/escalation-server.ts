@@ -1,15 +1,3 @@
-// GET /review-requests - Dashboard for all review requests
-app.get('/review-requests', (_req: Request, res: Response) => {
-  try {
-    const templatePath = join(__dirname, '..', 'templates', 'review-requests.html');
-    let template = readFileSync(templatePath, 'utf-8');
-    res.setHeader('Content-Type', 'text/html');
-    res.send(template);
-  } catch (err) {
-    console.error('[Escalation Server] Failed to render review-requests dashboard:', err);
-    res.status(500).send(createErrorHTML('Failed to load review requests dashboard'));
-  }
-});
 import express, { Request, Response } from 'express';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
@@ -94,23 +82,33 @@ export function startEscalationServer(
     
     const sessions = sessionManager.listSessions();
     res.json({
-sessions: sessions.map(s => ({
-  id: s.id,
-  taskId: s.taskId,
-  status: s.status,
-  summary: s.summary,
-  details: s.details,
-  escalationReason: s.escalationReason,
-  iterationCount: s.iterationCount,
-  reviewerType: s.reviewerType,
-  llmFeedback: s.llmFeedback,
-  humanFeedback: s.humanFeedback,
-  createdAt: s.createdAt,
-  updatedAt: s.updatedAt
-})),
-      count: sessions.length,
+      sessions: sessions.map(s => ({
+        id: s.id,
+        taskId: s.taskId,
+        status: s.status,
+        summary: s.summary,
+        details: s.details,
+        escalationReason: s.escalationReason,
+        iterationCount: s.iterationCount,
+        reviewerType: s.reviewerType,
+        llmFeedback: s.llmFeedback,
+        humanFeedback: s.humanFeedback,
+      })),
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // GET /review-requests - Dashboard for all review requests
+  app.get('/review-requests', (_req: Request, res: Response) => {
+    try {
+      const templatePath = join(__dirname, '..', 'templates', 'review-requests.html');
+      let template = readFileSync(templatePath, 'utf-8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(template);
+    } catch (err) {
+      console.error('[Escalation Server] Failed to render review-requests dashboard:', err);
+      res.status(500).send(createErrorHTML('Failed to load review requests dashboard'));
+    }
   });
 
   // GET /review/:sessionId - Render HTML template with session data
@@ -122,24 +120,13 @@ sessions: sessions.map(s => ({
       return;
     }
 
-    // Enhanced getSession with retry logic
-    async function getSessionWithRetry(sessionId: string): Promise<ReviewSession | null> {
-      const maxRetries = 3;
-      const baseDelayMs = 1000; // 1 second base delay
-      
-      // Exponential backoff with jitter
-      for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
-        const sessionData = sessionManager?.getSession(sessionId);
-        if (!sessionData || sessionData.escalationReason !== 'connection_failed') {
-          return sessionData ? this.toReviewSession(sessionData) : null;
-        }
-        
-        const delayMs = Math.min(baseDelayMs * Math.pow(2, retryCount), 10_000) + Math.floor(Math.random() * 1000);
-        await setTimeout(delayMs);
-      }
-      
-      return null;
+    const session = sessionManager.getSession(sessionId);
+    
+    if (!session) {
+      res.status(404).send(createErrorHTML(`Session not found: ${sessionId}`));
+      return;
     }
+
     // Check if this is a connection failure - show setup page instead
     if (session.escalationReason === 'connection_failed') {
       try {
@@ -248,6 +235,7 @@ sessions: sessions.map(s => ({
   const server = app.listen(port, () => {
     console.log(`[Escalation Server] Running on http://localhost:${port}`);
     console.log(`[Escalation Server] Health check: http://localhost:${port}/api/health`);
+    console.log(`[Escalation Server] Dashboard: http://localhost:${port}/review-requests`);
   });
 
   serverInstance = {

@@ -24,6 +24,10 @@ const { version } = JSON.parse(packageJson);
 let sessionManager: SessionManager | null = null;
 let config = DEFAULT_CONFIG;
 
+// Rate limiting state
+const requestTimestamps = new Map<string, number[]>();
+const MAX_REQUESTS_PER_MINUTE = 10;
+
 // Create MCP server
 const mcpServer = new Server(
   {
@@ -37,6 +41,31 @@ const mcpServer = new Server(
   }
 );
 
+// Rate limiting helper
+function checkRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const timestamps = requestTimestamps.get(clientId) || [];
+
+  // Filter timestamps from the last minute
+  const recentRequests = timestamps.filter(t => t > now - 60_000);
+
+  if (recentRequests.length >= MAX_REQUESTS_PER_MINUTE) {
+    console.warn(`[MCP Server] Rate limit exceeded for client ${clientId}`);
+    return false;
+  }
+
+  // Add current timestamp and clean up old ones
+  recentRequests.push(now);
+  requestTimestamps.set(clientId, recentRequests);
+
+  // Clean up timestamps older than 5 minutes
+  const allTimestamps = requestTimestamps.get(clientId) || [];
+  const validTimestamps = allTimestamps.filter(t => t > now - 300_000);
+  requestTimestamps.set(clientId, validTimestamps);
+
+  return true;
+}
+
 // Tool handlers
 async function handleRequestReview(
   args: RequestReviewInput
@@ -45,34 +74,14 @@ async function handleRequestReview(
     throw new Error('Session manager not initialized');
   }
 
+  // Check rate limit
+  const clientId = args.taskId || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    throw new Error('Rate limit exceeded. Please try again later.');
+  }
 
-    // Add rate limiting for review requests
-    private requestTimestamps: Map<string, number[]> = new Map();
-    private MAX_REQUESTS_PER_MINUTE = 10;
-    
-    private async checkRateLimit(clientId: string): Promise<boolean> {
-      const now = Date.now();
-      const timestamps = this.requestTimestamps.get(clientId) || [];
-      
-      // Filter timestamps from the last minute
-      const recentRequests = timestamps.filter(t => t > now - 60_000);
-      
-      if (recentRequests.length >= this.MAX_REQUESTS_PER_MINUTE) {
-        console.warn(`[MCP Server] Rate limit exceeded for client ${clientId}`);
-        return false;
-      }
-      
-      // Add current timestamp and clean up old ones
-      recentRequests.push(now);
-      this.requestTimestamps.set(clientId, recentRequests);
-      
-      // Clean up timestamps older than 5 minutes
-      const allTimestamps = this.requestTimestamps.get(clientId) || [];
-      const validTimestamps = allTimestamps.filter(t => t > now - 300_000);
-      this.requestTimestamps.set(clientId, validTimestamps);
-      
-      return true;
-    }
+  const session = sessionManager.createSession({
+    taskId: args.taskId,
     summary: args.summary,
     details: args.details,
     conversationHistory: args.conversationHistory,
