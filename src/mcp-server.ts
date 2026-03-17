@@ -45,8 +45,34 @@ async function handleRequestReview(
     throw new Error('Session manager not initialized');
   }
 
-  const session = sessionManager.createSession({
-    taskId: args.taskId,
+
+    // Add rate limiting for review requests
+    private requestTimestamps: Map<string, number[]> = new Map();
+    private MAX_REQUESTS_PER_MINUTE = 10;
+    
+    private async checkRateLimit(clientId: string): Promise<boolean> {
+      const now = Date.now();
+      const timestamps = this.requestTimestamps.get(clientId) || [];
+      
+      // Filter timestamps from the last minute
+      const recentRequests = timestamps.filter(t => t > now - 60_000);
+      
+      if (recentRequests.length >= this.MAX_REQUESTS_PER_MINUTE) {
+        console.warn(`[MCP Server] Rate limit exceeded for client ${clientId}`);
+        return false;
+      }
+      
+      // Add current timestamp and clean up old ones
+      recentRequests.push(now);
+      this.requestTimestamps.set(clientId, recentRequests);
+      
+      // Clean up timestamps older than 5 minutes
+      const allTimestamps = this.requestTimestamps.get(clientId) || [];
+      const validTimestamps = allTimestamps.filter(t => t > now - 300_000);
+      this.requestTimestamps.set(clientId, validTimestamps);
+      
+      return true;
+    }
     summary: args.summary,
     details: args.details,
     conversationHistory: args.conversationHistory,

@@ -1,3 +1,17 @@
+// Helper to ensure conversation alternates user/assistant
+function ensureAlternatingRoles(history: Array<{ role: string; content: string }>): Array<{ role: string; content: string }> {
+  if (!history || history.length < 2) return history;
+  let prevRole = history[0].role;
+  for (let i = 1; i < history.length; i++) {
+    const expectedRole = prevRole === 'user' ? 'assistant' : 'user';
+    if (history[i].role !== expectedRole) {
+      history[i].role = expectedRole;
+    }
+    prevRole = history[i].role;
+  }
+  return history;
+}
+
 import { SessionManager } from './session-manager.js';
 import { createLLMClient, LLMClientError, LLMClientResult } from './llm-client.js';
 import { buildReviewPrompt } from './llm-prompt.js';

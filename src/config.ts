@@ -69,14 +69,118 @@ export function validateConfig(config: PingpongConfig): PingpongConfig {
     config.llm.endpoint = DEFAULT_CONFIG.llm.endpoint;
   }
 
-  // Validate maxIterations
-  if (config.review.maxIterations < 1) {
-    console.warn(`[WARN] Invalid maxIterations: ${config.review.maxIterations}, using default 5`);
-    config.review.maxIterations = 5;
-  }
 
-  return config;
-}
+    // Add configuration versioning
+    export function applyConfigVersioning(config: PingpongConfig): PingpongConfig {
+      const result: PingpongConfig = { ...config };
+      
+      // Check if config has version field
+      if (!result.config?.version) {
+        result.config = { ...(result.config || {}), version: '1.0.0' };
+        return result;
+      }
+      
+      // Handle version migration if needed
+      const currentVersion = result.config.version;
+      if (currentVersion.startsWith('1.')) {
+        // Version 1.x.x is current, no migration needed
+        return result;
+      }
+      
+      // For future versions, implement migration logic here
+      console.warn(`[WARN] Configuration version ${currentVersion} requires migration`);
+      
+      return result;
+    }
+    
+    // Update validateConfig to include version validation
+    export function validateConfig(config: PingpongConfig): PingpongConfig {
+      // Validate LLM timeout
+      if (config.llm.timeout <= 0) {
+        console.warn(`[WARN] Invalid timeout: ${config.llm.timeout}, using default 1800`);
+        config.llm.timeout = 1800;
+      }
+      
+      // Validate escalation port
+      if (config.escalation.port < 1024 || config.escalation.port > 65535) {
+        console.warn(`[WARN] Invalid port: ${config.escalation.port}, using default 3456`);
+        config.escalation.port = 3456;
+      }
+      
+      // Validate LLM endpoint URL
+      try {
+        new URL(config.llm.endpoint);
+      } catch {
+        console.warn(`[WARN] Invalid endpoint URL: ${config.llm.endpoint}, using default`);
+        config.llm.endpoint = DEFAULT_CONFIG.llm.endpoint;
+      }
+      
+      // Validate maxIterations
+      if (config.review.maxIterations < 1) {
+        console.warn(`[WARN] Invalid maxIterations: ${config.review.maxIterations}, using default 5`);
+        config.review.maxIterations = 5;
+      }
+      
+      // Validate configuration versioning
+      if (!config.config?.version) {
+        console.warn('[WARN] Configuration version missing, adding default version');
+        config.config.version = '1.0.0';
+      }
+      
+      return config;
+    }
+        return result;
+      }
+      
+      // Handle version migration if needed
+      const currentVersion = result.config.version;
+      if (currentVersion.startsWith('1.')) {
+        // Version 1.x.x is current, no migration needed
+        return result;
+      }
+      
+      // For future versions, implement migration logic here
+      console.warn(`[WARN] Configuration version ${currentVersion} requires migration`);
+      
+      return result;
+    }
+    
+    // Update validateConfig to include version validation
+    export function validateConfig(config: PingpongConfig): PingpongConfig {
+      // Validate LLM timeout
+      if (config.llm.timeout <= 0) {
+        console.warn(`[WARN] Invalid timeout: ${config.llm.timeout}, using default 1800`);
+        config.llm.timeout = 1800;
+      }
+      
+      // Validate escalation port
+      if (config.escalation.port < 1024 || config.escalation.port > 65535) {
+        console.warn(`[WARN] Invalid port: ${config.escalation.port}, using default 3456`);
+        config.escalation.port = 3456;
+      }
+      
+      // Validate LLM endpoint URL
+      try {
+        new URL(config.llm.endpoint);
+      } catch {
+        console.warn(`[WARN] Invalid endpoint URL: ${config.llm.endpoint}, using default`);
+        config.llm.endpoint = DEFAULT_CONFIG.llm.endpoint;
+      }
+      
+      // Validate maxIterations
+      if (config.review.maxIterations < 1) {
+        console.warn(`[WARN] Invalid maxIterations: ${config.review.maxIterations}, using default 5`);
+        config.review.maxIterations = 5;
+      }
+      
+      // Validate configuration versioning
+      if (!config.config?.version) {
+        console.warn('[WARN] Configuration version missing, adding default version');
+        config.config = { ...(result.config || {}), version: '1.0.0' };
+      }
+      
+      return config;
+    }
 
 function deepMergeConfig(base: PingpongConfig, partial: Record<string, unknown>): PingpongConfig {
   const result: PingpongConfig = { ...base };

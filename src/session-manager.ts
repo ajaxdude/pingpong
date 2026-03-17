@@ -1,3 +1,4 @@
+import { setTimeout } from 'timers/promises';
 import * as fs from 'fs';
 import * as path from 'path';
 import { nanoid } from 'nanoid';
@@ -225,8 +226,74 @@ export class SessionManager {
     const cutoff = Date.now() - maxAgeMs;
     const toDelete: string[] = [];
 
-    for (const [sessionId, sessionData] of this.sessions.entries()) {
-      const createdAt = new Date(sessionData.createdAt).getTime();
+
+    // Add retry logic for connection failures
+    private async getSessionWithRetry(sessionId: string): Promise<ReviewSession | null> {
+      const maxRetries = 3;
+      const baseDelayMs = 1000; // 1 second base delay
+      
+      // Exponential backoff with jitter
+      for (let retryCount = 0; retryCount <= maxRetries; retryCount++) {
+        const session = this.sessions.get(sessionId);
+        if (!session || session.escalationReason !== 'connection_failed') {
+          return session ? this.toReviewSession(session) : null;
+
+    // Enhanced cleanup with configurable max age and automatic scheduling
+    async cleanup(maxAgeMs: number = 86400000): Promise<void> {
+      const cutoff = Date.now() - maxAgeMs;
+      const toDelete: string[] = [];
+      
+      // Find sessions older than max age
+      for (const [sessionId, sessionData] of this.sessions.entries()) {
+        const createdAt = new Date(sessionData.createdAt).getTime();
+        if (createdAt < cutoff) {
+          toDelete.push(sessionId);
+        }
+      }
+      
+      // Delete old sessions
+      for (const sessionId of toDelete) {
+        this.deleteSessionFile(sessionId);
+      }
+      
+
+    // Add cron job for automatic session cleanup
+    private cleanupInterval?: NodeJS.Timeout;
+    
+    startCleanupCron(maxAgeMs: number = 86400000): void {
+      // Stop any existing cleanup interval
+      if (this.cleanupInterval) {
+        clearInterval(this.cleanupInterval);
+      }
+      
+      // Start new cleanup interval
+      this.cleanupInterval = setInterval(() => {
+        this.cleanup(maxAgeMs).catch(err => {
+          console.error('[Session Manager] Cleanup cron failed:', err);
+        });
+      }, maxAgeMs);
+      
+      console.log('[Session Manager] Automatic cleanup cron started');
+    }
+    
+    stopCleanupCron(): void {
+      if (this.cleanupInterval) {
+        clearInterval(this.cleanupInterval);
+        this.cleanupInterval = undefined;
+        console.log('[Session Manager] Automatic cleanup cron stopped');
+      }
+    }
+        if (retryCount >= maxRetries) {
+          console.error('[Session Manager] Max retries reached for connection failure');
+          return null;
+        }
+        
+        const delayMs = Math.min(baseDelayMs * Math.pow(2, retryCount), 10_000) + Math.floor(Math.random() * 1000);
+        await setTimeout(delayMs);
+      }
+      
+      return null;
+    }
       if (createdAt < cutoff) {
         toDelete.push(sessionId);
       }
