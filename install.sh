@@ -59,9 +59,8 @@ echo "📄 Installing agent template files..."
 if [ -f "${OMP_AGENT_DIR}/APPEND_SYSTEM.md" ]; then
     echo "⚠️  Existing APPEND_SYSTEM.md found at ${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
     
-    # Check if running interactively
-    if [ -t 0 ]; then
-        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite; then
+    if [ -c /dev/tty ]; then
+        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite </dev/tty; then
             if [[ $overwrite =~ ^[Yy]$ ]]; then
                 cp "${PINGPONG_DIR}/templates/APPEND_SYSTEM.md" "${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
                 echo "✅ Updated APPEND_SYSTEM.md"
@@ -73,6 +72,7 @@ if [ -f "${OMP_AGENT_DIR}/APPEND_SYSTEM.md" ]; then
             echo "⏱️  No input received - keeping existing APPEND_SYSTEM.md"
         fi
     else
+        echo "📋 Cannot read from terminal. To manually update, run: cp ${PINGPONG_DIR}/templates/APPEND_SYSTEM.md ${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
         echo "📋 Keeping existing APPEND_SYSTEM.md (run interactively to overwrite)"
     fi
 else
@@ -84,9 +84,8 @@ fi
 if [ -f "${OMP_AGENT_DIR}/LLAMACPP.md" ]; then
     echo "⚠️  Existing LLAMACPP.md found at ${OMP_AGENT_DIR}/LLAMACPP.md"
     
-    # Check if running interactively
-    if [ -t 0 ]; then
-        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite; then
+    if [ -c /dev/tty ]; then
+        if read -t 5 -p "Overwrite with pingpong template? [y/N] [default: N]: " overwrite </dev/tty; then
             if [[ $overwrite =~ ^[Yy]$ ]]; then
                 cp "${PINGPONG_DIR}/templates/LLAMACPP.md" "${OMP_AGENT_DIR}/LLAMACPP.md"
                 echo "✅ Updated LLAMACPP.md"
@@ -98,6 +97,7 @@ if [ -f "${OMP_AGENT_DIR}/LLAMACPP.md" ]; then
             echo "⏱️  No input received - keeping existing LLAMACPP.md"
         fi
     else
+        echo "📋 Cannot read from terminal. To manually update, run: cp ${PINGPONG_DIR}/templates/LLAMACPP.md ${OMP_AGENT_DIR}/LLAMACPP.md"
         echo "📋 Keeping existing LLAMACPP.md (run interactively to overwrite)"
     fi
 else
@@ -165,40 +165,46 @@ EOF
     echo "✅ Created MCP configuration with pingpong server"
 else
     # mcp.json exists - try interactive, fallback to automatic
-    if [ -t 0 ]; then
-        # Try interactive mode with timeout
-        echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
-        echo ""
-        echo "Choose an option (will auto-select option 1 in 5 seconds):"
-        echo "  1) Add pingpong to existing configuration (recommended)"
-        echo "  2) Replace entire MCP configuration"
-        echo "  3) Skip MCP configuration"
-        echo ""
-        
-        # Read with timeout (requires bash 4+)
-        if read -t 5 -p "Enter choice (1-3) [default: 1]: " choice; then
-            case $choice in
-                1|"")
-                    echo "➕ Adding pingpong to existing MCP configuration..."
-                    add_pingpong_to_config
-                    ;;
-                2)
-                    echo "🔄 Replacing MCP configuration..."
-                    replace_config
-                    ;;
-                3)
-                    echo "⏭️  Skipping MCP configuration"
-                    echo "   You can manually add pingpong to ${MCP_CONFIG} later"
-                    ;;
-                *)
-                    echo "❌ Invalid choice. Adding pingpong to existing configuration..."
-                    add_pingpong_to_config
-                    ;;
-            esac
-        else
-            # Timeout or no input - use default
+    if [ -t 0 ] || [ -p /dev/stdin ]; then
+        if [ -c /dev/tty ]; then
+            # Try interactive mode with timeout
+            echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
             echo ""
-            echo "⏱️  No input received - using default option (add to existing config)"
+            echo "Choose an option (will auto-select option 1 in 5 seconds):"
+            echo "  1) Add pingpong to existing configuration (recommended)"
+            echo "  2) Replace entire MCP configuration"
+            echo "  3) Skip MCP configuration"
+            echo ""
+            
+            # Read with timeout (requires bash 4+)
+            if read -t 5 -p "Enter choice (1-3) [default: 1]: " choice </dev/tty; then
+                case $choice in
+                    1|"")
+                        echo "➕ Adding pingpong to existing MCP configuration..."
+                        add_pingpong_to_config
+                        ;;
+                    2)
+                        echo "🔄 Replacing MCP configuration..."
+                        replace_config
+                        ;;
+                    3)
+                        echo "⏭️  Skipping MCP configuration"
+                        echo "   You can manually add pingpong to ${MCP_CONFIG} later"
+                        ;;
+                    *)
+                        echo "❌ Invalid choice. Adding pingpong to existing configuration..."
+                        add_pingpong_to_config
+                        ;;
+                esac
+            else
+                # Timeout or no input - use default
+                echo ""
+                echo "⏱️  No input received - using default option (add to existing config)"
+                add_pingpong_to_config
+            fi
+        else
+            echo "⚠️  Existing MCP configuration found at ${MCP_CONFIG}"
+            echo "📋 Cannot read from terminal. Running in automatic mode - adding pingpong to existing configuration..."
             add_pingpong_to_config
         fi
     else
