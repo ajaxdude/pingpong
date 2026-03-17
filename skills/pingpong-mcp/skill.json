@@ -1,7 +1,0 @@
-{
-  "tools": ["pingpong/request_review"],
-  "endpoints": {
-    "pingpong/request_review": "scripts/request_review.py"
-  },
-  "description": "OMP skill exposing pingpong/request_review for MCP server integration."
-}
