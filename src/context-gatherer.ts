@@ -18,7 +18,7 @@ export function detectPRD(basePath?: string): string | null {
   ];
 
   for (const path of commonPaths) {
-    const fullPath = basePath ? resolve(basePath, path) : resolve(path);
+    const fullPath = basePath ? join(basePath, path) : resolve(path);
     if (existsSync(fullPath)) {
       try {
         accessSync(fullPath, 4); // Check if readable
@@ -50,7 +50,7 @@ export function loadPRD(basePath?: string): string | null {
     if (content.length > MAX_FILE_SIZE) {
       const truncated = content.slice(0, MAX_FILE_SIZE);
       const originalSize = Math.round(content.length / 1024);
-      const warning = `\n\n[WARNING: This file was truncated to ${MAX_FILE_SIZE / 1024}KB. Original size: ${originalSize}KB.]`;
+      const warning = `\n\n[WARNING: This file was truncated to ${MAX_FILE_SIZE / 1024}KB]`;
       return truncated + warning;
     }
     
@@ -97,7 +97,7 @@ export function loadGitDiff(): string {
     if (fullDiff.length > MAX_FILE_SIZE) {
       const truncated = fullDiff.slice(0, MAX_FILE_SIZE);
       const originalSize = Math.round(fullDiff.length / 1024);
-      const warning = `\n\n[WARNING: This git diff was truncated to ${MAX_FILE_SIZE / 1024}KB. Original size: ${originalSize}KB.]`;
+      const warning = `\n\n[WARNING: This git diff was truncated to ${MAX_FILE_SIZE / 1024}KB]`;
       return truncated + warning;
     }
     
