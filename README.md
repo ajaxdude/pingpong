@@ -1,8 +1,21 @@
-# Pingpong
+# Pingpong: The Hybrid Code Review MCP for Oh-My-Pi
 
-**Save on GitHub Copilot queries by using local LLM instead of cloud APIs.**
+**Maximize your GitHub Copilot premium requests by utilizing a hybrid cloud and local LLM workflow.**
 
-This tool is proven to work and recommended to be used with [oh-my-pi](https://github.com/can1357/oh-my-pi). Inspired by [Copilot-Leecher](https://github.com/xiangxiaobo/Copilot-Leecher).
+This MCP server integrates seamlessly with [oh-my-pi](https://github.com/can1357/oh-my-pi) to give you an automated, iterative code review cycle. Inspired by [Copilot-Leecher](https://github.com/xiangxiaobo/Copilot-Leecher).
+
+## Why Pingpong?
+
+If you use GitHub Copilot (such as Claude 3.5 Sonnet or GPT-4o), you know how quickly you can burn through your monthly premium requests. Following up with an agent to fix a bug, review an edge case, or verify requirements uses a brand new premium request every single time.
+
+**Pingpong solves this by introducing a hybrid architecture.**
+1. Your cloud LLM writes the initial code.
+2. Instead of finishing, the cloud LLM calls the `mcp_pingpong_request_review` tool.
+3. Pingpong intercepts the workflow and sends the git diff and project PRD to a completely free, local LLM running via `llama.cpp`.
+4. The local LLM reviews the code. If it finds issues, it returns the feedback *inside the same tool call*.
+5. The cloud LLM receives the feedback and revises the code—all without burning an extra premium request!
+
+This means you can squeeze a full iterative write-review-fix cycle into the cost of a single Copilot query, saving your premium quota for the heavy lifting.
 
 ## Quick Start
 
@@ -47,31 +60,31 @@ cp pingpong.config.example.json pingpong.config.json
 
 ### For Agents
 
-After completing work, call `mcp_pingpong_request_review(taskId, summary, details?, conversationHistory?)`:
+After completing work, the agent must call `mcp_pingpong_request_review(taskId, summary, details?, conversationHistory?)`:
 
 - `taskId`: format `[type]-[date]-[seq]` — e.g., `feature-20260316-001`
-- `summary`: 2–3 sentences covering what changed and why
+- `summary`: 2-3 sentences covering what changed and why
 
 **What gets reviewed:**
-- Task summary + details
+- Task summary and details
 - Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
 - Git diff (`git diff HEAD`)
 - Conversation history (if provided)
 - Built-in criteria: correctness, quality, security, performance, maintainability
 
 **Review Process:**
-1. Local LLM reviews your work → returns `approved`, `needs_revision`, or `escalated`
-2. If `needs_revision` → improve based on feedback and retry
-3. After 5 iterations → escalates to browser UI at `http://localhost:3456`
-4. Human provides feedback → `"ok"`/`"approved"`/`"lgtm"` → task complete
+1. The local LLM reviews the work and returns `approved`, `needs_revision`, or `escalated`.
+2. If `needs_revision`, the cloud agent improves the code based on the local feedback and retries.
+3. After 5 iterations, Pingpong escalates to a browser UI at `http://localhost:3456`.
+4. A human reviews the code and provides feedback. Typing `"ok"`, `"approved"`, or `"lgtm"` completes the task.
 
 ### Connection Failure Handling
 
-When llama.cpp isn't running, pingpong automatically:
+When `llama.cpp` isn't running, Pingpong automatically:
 1. Detects connection errors (`ECONNREFUSED`, `ENOTFOUND`, `ECONNRESET`)
-2. Opens browser with setup instructions
-3. Shows llama.cpp installation and startup guide
-4. Auto-refreshes to detect when service becomes available
+2. Opens your browser with setup instructions
+3. Shows a `llama.cpp` installation and startup guide
+4. Auto-refreshes to detect when the service becomes available
 
 ## Configuration
 
@@ -118,7 +131,7 @@ llama-server -p 8080 -m path/to/model.gguf
 ```
 
 **PRD Not Detected**
-- Ensure PRD exists at: `./docs/PRD.md`, `./PRD.md`, or `./README.md`
+- Ensure the PRD exists at: `./docs/PRD.md`, `./PRD.md`, or `./README.md`
 - Or configure custom PRD paths in `pingpong.config.json`
 
 **TypeScript Errors**
