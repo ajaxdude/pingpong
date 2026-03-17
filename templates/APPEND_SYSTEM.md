@@ -1,6 +1,6 @@
 ### 3. Review loop via pingpong
 
-After completing all work, you MUST call the `request_review` tool:
+After completing all work, you MUST call the `mcp_pingpong_request_review` tool:
 - `taskId`: format `[type]-[date]-[seq]` — e.g. `feature-20260314-001`, `fix-20260314-001`, `refactor-20260314-001`
 - `summary`: 2–3 sentences covering what changed, why, and any assumptions made
 - `conversationHistory` (optional): Include full conversation if it provides important context
@@ -16,13 +16,13 @@ After completing all work, you MUST call the `request_review` tool:
 **How automated review works:**
 Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation. The local LLM responds with:
 - `STATUS: approved` → stop immediately, confirm completion
-- `STATUS: needs_revision` → read the feedback, improve your work, call `request_review` again
+- `STATUS: needs_revision` → read the feedback, improve your work, call `mcp_pingpong_request_review` again
 
 **Escalation to human (after 5 iterations or LLM errors):**
 - Web UI opens at `http://127.0.0.1:3456` with full session history
 - Human reviews and provides feedback
 - `"ok"` / `"approved"` / `"lgtm"` → task complete
-- Any other feedback → improve and call `request_review` again
+- Any other feedback → improve and call `mcp_pingpong_request_review` again
 
 **Hard rules:**
 - NEVER finish a task without an approved review

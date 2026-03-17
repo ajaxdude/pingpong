@@ -47,7 +47,7 @@ cp pingpong.config.example.json pingpong.config.json
 
 ### For Agents
 
-After completing work, call `request_review(taskId, summary, details?, conversationHistory?)`:
+After completing work, call `mcp_pingpong_request_review(taskId, summary, details?, conversationHistory?)`:
 
 - `taskId`: format `[type]-[date]-[seq]` — e.g., `feature-20260316-001`
 - `summary`: 2–3 sentences covering what changed and why

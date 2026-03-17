@@ -10,8 +10,14 @@ import { SessionManager } from './session-manager.js';
 import { loadConfig, DEFAULT_CONFIG } from './config.js';
 import { RequestReviewInput, RequestReviewResult } from './types.js';
 
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Read version from package.json
-const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf-8');
+const packageJson = readFileSync(join(__dirname, '..', 'package.json'), 'utf-8');
 const { version } = JSON.parse(packageJson);
 
 // Global state
