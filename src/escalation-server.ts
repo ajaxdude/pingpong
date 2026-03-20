@@ -20,6 +20,7 @@ interface EscalationServerOptions {
   port?: number;
   sessionManager?: SessionManager | null;
   resolveSessionCallback?: (sessionId: string, feedback: string) => void;
+  config?: any;
 }
 
 let serverInstance: EscalationServer | null = null;
@@ -31,7 +32,7 @@ let appInstance: express.Express | null = null;
 export function startEscalationServer(
   options: EscalationServerOptions
 ): EscalationServer {
-  const { port = 3456, sessionManager } = options;
+  const { port = 3456, sessionManager, config } = options;
 
   // Return existing instance if server already started
   if (serverInstance) {

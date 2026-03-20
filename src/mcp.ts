@@ -10,6 +10,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { SessionManager } from './session-manager.js';
 import { loadConfig, DEFAULT_CONFIG } from './config.js';
+import { createReviewLoop } from './review-loop.js';
+import { startEscalationServer } from './escalation-server.js';
 import { RequestReviewInput, RequestReviewResult } from './types.js';
 
 import { fileURLToPath } from 'url';
@@ -25,7 +27,37 @@ const { version } = JSON.parse(packageJson);
 // Global state
 let sessionManager: SessionManager | null = null;
 let config = DEFAULT_CONFIG;
+let reviewLoop: any = null;
+let escalationServer: any = null;
 
+// Rate limiting state
+const requestTimestamps = new Map<string, number[]>();
+const MAX_REQUESTS_PER_MINUTE = 10;
+
+// Rate limiting helper
+function checkRateLimit(clientId: string): boolean {
+  const now = Date.now();
+  const timestamps = requestTimestamps.get(clientId) || [];
+
+  // Filter timestamps from the last minute
+  const recentRequests = timestamps.filter(t => t > now - 60_000);
+
+  if (recentRequests.length >= MAX_REQUESTS_PER_MINUTE) {
+    console.warn(`[MCP Server] Rate limit exceeded for client ${clientId}`);
+    return false;
+  }
+
+  // Add current timestamp and clean up old ones
+  recentRequests.push(now);
+  requestTimestamps.set(clientId, recentRequests);
+
+  // Clean up timestamps older than 5 minutes
+  const allTimestamps = requestTimestamps.get(clientId) || [];
+  const validTimestamps = allTimestamps.filter(t => t > now - 300_000);
+  requestTimestamps.set(clientId, validTimestamps);
+
+  return true;
+}
 // Create MCP server
 const mcpServer = new Server(
   {
@@ -47,12 +79,41 @@ async function handleRequestReview(
     throw new Error('Session manager not initialized');
   }
 
+  // Check rate limit
+  const clientId = args.taskId || 'unknown';
+  if (!checkRateLimit(clientId)) {
+    throw new Error('Rate limit exceeded. Please try again later.');
+  }
+
   const session = sessionManager.createSession({
     taskId: args.taskId,
     summary: args.summary,
     details: args.details,
     conversationHistory: args.conversationHistory,
   });
+
+  if (reviewLoop) {
+    (async () => {
+      try {
+        const result = await reviewLoop.startReview(args.taskId, args.summary, args.details, args.conversationHistory);
+        console.error('[MCP] Review loop completed for session', session.id, result);
+        if (sessionManager) {
+          sessionManager.resolveSession(session.id, result.feedback);
+        }
+      } catch (err: any) {
+        console.error('[MCP] Review loop error for session', session.id, err);
+        if (sessionManager) {
+          sessionManager.updateSession(session.id, {
+            status: 'escalated',
+            feedback: String(err?.message || err),
+            reviewerType: 'llm',
+          });
+        }
+      }
+    })();
+  } else {
+    console.warn('[MCP] No review loop available in this process; LLM review will not run until a review loop is available');
+  }
 
   return {
     status: 'pending',
@@ -118,12 +179,49 @@ async function initializeComponents(): Promise<void> {
     const sessionDir = join(projectRoot, '.pingpong', 'sessions');
     sessionManager = new SessionManager(sessionDir);
     console.error('[INFO] Session manager initialized');
+
+    // Load configuration
+    try {
+      config = await loadConfig(projectRoot);
+      console.error('[INFO] Configuration loaded successfully for MCP');
+    } catch (err: any) {
+      console.warn('[WARN] Configuration loading failed for MCP, using defaults');
+      config = DEFAULT_CONFIG;
+    }
+
+    // Initialize review loop so MCP can trigger LLM reviews
+    try {
+      if (sessionManager && config) {
+        reviewLoop = createReviewLoop(sessionManager, config as any);
+        console.error('[INFO] Review loop initialized in MCP server');
+      }
+    } catch (err: any) {
+      console.warn('[WARN] Review loop initialization failed in MCP server:', err?.message || err);
+      reviewLoop = null;
+    }
+
+    // Start escalation server (dashboard) if enabled in config
+    try {
+      if (config?.escalation?.enabled) {
+        escalationServer = startEscalationServer({
+          port: config.escalation.port,
+          sessionManager: sessionManager,
+          config: config,
+          resolveSessionCallback: (sessionId: string, feedback: string) => {
+            console.log("[MCP] Escalation resolved session " + sessionId + " with feedback");
+            if (sessionManager) sessionManager.resolveSession(sessionId, feedback);
+          },
+        });
+        console.error('[INFO] Escalation server started on port ' + config.escalation.port);
+      }
+    } catch (err: any) {
+      console.warn('[WARN] Failed to start escalation server in MCP process:', err?.message || err);
+    }
   } catch (error) {
-    console.error('[WARN] Session manager initialization failed:', error);
+    console.error('[WARN] Global initialization failed in MCP:', error);
     sessionManager = null;
   }
 }
-
 // Set up request handlers
 function setupRequestHandlers(): void {
   // List available tools
@@ -288,3 +386,5 @@ main().catch((error) => {
   console.error('[ERROR] Failed to start MCP server:', error);
   process.exit(1);
 });
+// Export for testing/verification
+export { mcpServer, initializeComponents as initializeServer, handleRequestReview };
