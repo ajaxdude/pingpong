@@ -5,229 +5,265 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escalation Review - {{taskId}}</title>
   <style>
+    :root {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-tertiary: #3d3d3d;
+      --text-primary: #e0e0e0;
+      --text-secondary: #b0b0b0;
+      --border-color: #444;
+      --status-pending: #ff9800;
+      --status-approved: #4caf50;
+      --status-escalated: #2196f3;
+      --status-error: #f44336;
+      --accent-primary: #bb86fc;
+      --accent-secondary: #03dac6;
+      --lgtm-green: #4caf50;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       line-height: 1.6;
-      color: #333;
-      background-color: #f5f5f5;
+      color: var(--text-primary);
+      background: var(--bg-primary);
       padding: 20px;
     }
-    
+
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
       padding: 30px;
     }
-    
+
     h1 {
-      font-size: 1.5rem;
-      margin-bottom: 20px;
-      color: #2c3e50;
+      font-size: 1.8rem;
+      margin-bottom: 25px;
+      color: var(--accent-primary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    
+
     .review-summary {
-      background: #f8f9fa;
-      border-radius: 6px;
-      padding: 20px;
-      margin-bottom: 25px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 30px;
     }
-    
+
     .review-summary h2 {
-      font-size: 1.1rem;
-      color: #555;
-      margin-bottom: 15px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #ddd;
+      font-size: 1.3rem;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
-    
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
     .summary-item {
-      margin-bottom: 12px;
+      margin-bottom: 15px;
     }
-    
-    .summary-item:last-child {
-      margin-bottom: 0;
-    }
-    
+
     .summary-label {
-      display: inline-block;
+      display: block;
       font-weight: 600;
-      color: #666;
-      width: 100px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      font-size: 0.9rem;
     }
-    
+
     .summary-value {
-      color: #2c3e50;
+      color: var(--text-primary);
+      font-size: 1rem;
+      line-height: 1.5;
+      word-break: break-word;
     }
-    
+
+    .status-badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+
+    .status-pending {
+      background: rgba(255, 152, 0, 0.2);
+      color: var(--status-pending);
+      border: 1px solid var(--status-pending);
+    }
+
+    .status-approved {
+      background: rgba(76, 175, 80, 0.2);
+      color: var(--status-approved);
+      border: 1px solid var(--status-approved);
+    }
+
+    .status-escalated {
+      background: rgba(33, 150, 243, 0.2);
+      color: var(--status-escalated);
+      border: 1px solid var(--status-escalated);
+    }
+
+    .explanation {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+      border-left: 3px solid var(--accent-primary);
+    }
+
+    .explanation p {
+      margin: 0;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .explanation strong {
+      color: var(--text-primary);
+    }
+
     .feedback-section {
-      margin-bottom: 25px;
+      margin-bottom: 30px;
     }
-    
-    .feedback-section h2 {
-      font-size: 1.1rem;
-      color: #555;
-      margin-bottom: 10px;
-    }
-    
+
     textarea {
       width: 100%;
-      min-height: 150px;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 6px;
+      min-height: 200px;
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
       font-size: 1rem;
       font-family: inherit;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
       resize: vertical;
+      transition: border-color 0.2s ease;
     }
-    
-    textarea:focus {
-      outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-    }
-    
+
     .actions {
       display: flex;
-      gap: 10px;
+      gap: 15px;
       flex-wrap: wrap;
+      margin-top: 20px;
     }
-    
+
     button {
-      padding: 12px 24px;
+      padding: 14px 28px;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    
-    button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
-    }
-    
-    button:active {
-      transform: translateY(0);
-    }
-    
-    .btn-ok {
-      background: #27ae60;
-      color: white;
-    }
-    
-    .btn-ok:hover {
-      background: #219a52;
-    }
-    
-    .btn-approved {
-      background: #2980b9;
-      color: white;
-    }
-    
-    .btn-approved:hover {
-      background: #2471a3;
-    }
-    
+
     .btn-lgtm {
-      background: #e67e22;
+      background: var(--lgtm-green);
       color: white;
+      flex: 1;
+      justify-content: center;
     }
-    
-    .btn-lgtm:hover {
-      background: #d35400;
-    }
-    
-    .error-page {
-      text-align: center;
-      padding: 40px 20px;
-    }
-    
-    .error-page h1 {
-      color: #e74c3c;
-      margin-bottom: 15px;
-    }
-    
-    .error-page p {
-      color: #666;
-    }
-    
-    .loading {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid #ddd;
-      border-top-color: #3498db;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+      }
+      
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
   {{#error}}
   <div class="container error-page">
-    <h1>Error</h1>
+    <h1>❌ Error</h1>
     <p>{{error}}</p>
   </div>
   {{/error}}
   
   {{^error}}
   <div class="container">
-    <h1>Escalation Review</h1>
+    <h1>🔍 Escalation Review</h1>
     
     <div class="review-summary">
-      <h2>Review Summary</h2>
-      <div class="summary-item">
-        <span class="summary-label">Task ID:</span>
-        <span class="summary-value">{{taskId}}</span>
+      <h2>📋 Review Summary</h2>
+      <div class="summary-grid">
+        <div>
+          <div class="summary-item">
+            <span class="summary-label">Task ID</span>
+            <span class="summary-value">{{taskId}}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Summary</span>
+            <span class="summary-value">{{summary}}</span>
+          </div>
+        </div>
+        <div>
+          <div class="summary-item">
+            <span class="summary-label">Iteration</span>
+            <span class="summary-value">{{iterationCount}}</span>
+          </div>
+          {{#status}}
+          <div class="summary-item">
+            <span class="summary-label">Status</span>
+            <span class="summary-value"><span class="status-badge status-{{status}}">{{status}}</span></span>
+          </div>
+          {{/status}}
+        </div>
       </div>
-      <div class="summary-item">
-        <span class="summary-label">Summary:</span>
-        <span class="summary-value">{{summary}}</span>
-      </div>
-      <div class="summary-item">
-        <span class="summary-label">Iteration:</span>
-        <span class="summary-value">{{iterationCount}}</span>
-      </div>
-      {{#status}}
-      <div class="summary-item">
-        <span class="summary-label">Status:</span>
-        <span class="summary-value">{{status}}</span>
-      </div>
-      {{/status}}
       {{#llmFeedback}}
       <div class="summary-item">
-        <span class="summary-label">LLM Feedback:</span>
+        <span class="summary-label">LLM Feedback</span>
         <span class="summary-value">{{llmFeedback}}</span>
       </div>
       {{/llmFeedback}}
     </div>
     
+    <div class="explanation">
+      <p><strong>What happens when you submit feedback:</strong> Your feedback will be sent to the code review system. If you approve with LGTM, the review will be marked as complete. If you provide detailed feedback, the system will incorporate your input into the next iteration of the review process.</p>
+    </div>
+    
     <form class="feedback-section" id="feedbackForm">
-      <h2>Human Feedback</h2>
+      <h2>💬 Human Feedback</h2>
       <textarea 
         name="feedback" 
         id="feedback" 
-        placeholder="Provide your feedback here..."></textarea>
+        placeholder="Provide your feedback here...">{{humanFeedback}}</textarea>
       
       <div class="actions">
-        <button type="button" class="btn-ok" data-action="ok">OK</button>
-        <button type="button" class="btn-approved" data-action="approved">Approved</button>
-        <button type="button" class="btn-lgtm" data-action="lgtm">LGTM</button>
-        <button type="submit" class="btn-lgtm" style="background: #3498db;">Submit Feedback</button>
+        <button type="button" class="btn-lgtm" id="lgtmBtn">
+          <span>✅</span>
+          <span>LGTM (Looks Good To Me)</span>
+        </button>
+        <button type="submit" class="btn-lgtm" style="background: #2196f3;">
+          <span>📤</span>
+          <span>Submit Feedback</span>
+        </button>
       </div>
     </form>
   </div>
@@ -235,15 +271,11 @@
   <script>
     const sessionId = '{{id}}';
     
-    // Quick action buttons
-    document.querySelectorAll('[data-action]').forEach(button => {
-      button.addEventListener('click', () => {
-        const action = button.dataset.action;
-        document.getElementById('feedback').value = action;
-      });
+    document.getElementById('lgtmBtn').addEventListener('click', () => {
+      document.getElementById('feedback').value = 'LGTM - Looks Good To Me';
+      document.getElementById('feedbackForm').dispatchEvent(new Event('submit'));
     });
     
-    // Form submission
     document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       
@@ -264,14 +296,14 @@
         });
         
         if (response.ok) {
-          alert('Feedback submitted successfully!');
-          window.location.reload();
+          alert('✅ Feedback submitted successfully!');
+          window.location.href = '/review-requests';
         } else {
           const error = await response.json();
-          alert(`Error: ${error.error || 'Failed to submit feedback'}`);
+          alert(`❌ Error: ${error.error || 'Failed to submit feedback'}`);
         }
       } catch (err) {
-        alert(`Network error: ${err.message}`);
+        alert(`❌ Network error: ${err.message}`);
       }
     });
   </script>

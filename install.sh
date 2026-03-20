@@ -215,6 +215,63 @@ else
     fi
 fi
 
+# Handle APPEND_SYSTEM.md
+echo ""
+echo "📝 Configuring APPEND_SYSTEM.md..."
+
+# Function to update pingpong section in APPEND_SYSTEM.md
+update_append_system() {
+    local append_system_file="${OMP_AGENT_DIR}/APPEND_SYSTEM.md"
+    local pingpong_template="${PINGPONG_DIR}/templates/APPEND_SYSTEM.md"
+    
+    # Check if APPEND_SYSTEM.md exists
+    if [ -f "${append_system_file}" ]; then
+        # Check if pingpong section already exists
+        if grep -q "Review loop via pingpong" "${append_system_file}"; then
+            echo "🔄 Pingpong section already exists in APPEND_SYSTEM.md. Updating..."
+            # Find the start and end of the pingpong section
+            local start_line=$(grep -n "Review loop via pingpong" "${append_system_file}" | head -1 | cut -d: -f1)
+            local end_line=$(grep -n "Review iteration:" "${append_system_file}" | head -1 | cut -d: -f1)
+            
+            # If we found both start and end, replace the section
+            if [ -n "${start_line}" ] && [ -n "${end_line}" ]; then
+                # Get content before pingpong section
+                head -n $((start_line - 1)) "${append_system_file}" > "${append_system_file}.new"
+                # Add new pingpong section
+                cat "${pingpong_template}" >> "${append_system_file}.new"
+                # Get content after pingpong section
+                tail -n +$((end_line + 7)) "${append_system_file}" >> "${append_system_file}.new"
+                # Replace original file
+                mv "${append_system_file}.new" "${append_system_file}"
+                echo "✅ Updated pingpong section in APPEND_SYSTEM.md"
+            else
+                echo "⚠️  Could not locate pingpong section boundaries. Appending new section..."
+                echo "" >> "${append_system_file}"
+                echo "---" >> "${append_system_file}"
+                echo "" >> "${append_system_file}"
+                cat "${pingpong_template}" >> "${append_system_file}"
+                echo "✅ Appended pingpong section to APPEND_SYSTEM.md"
+            fi
+        else
+            echo "➕ Adding pingpong section to existing APPEND_SYSTEM.md..."
+            echo "" >> "${append_system_file}"
+            echo "---" >> "${append_system_file}"
+            echo "" >> "${append_system_file}"
+            cat "${pingpong_template}" >> "${append_system_file}"
+            echo "✅ Added pingpong section to APPEND_SYSTEM.md"
+        fi
+    else
+        # Create new APPEND_SYSTEM.md with pingpong section
+        echo "📝 Creating new APPEND_SYSTEM.md with pingpong section..."
+        cat "${pingpong_template}" > "${append_system_file}"
+        echo "✅ Created APPEND_SYSTEM.md with pingpong section"
+    fi
+}
+
+# Update APPEND_SYSTEM.md
+update_append_system
+
+
 echo ""
 echo "✅ Installation complete!"
 echo ""
