@@ -36,7 +36,7 @@ export function startEscalationServer(
 
   // Return existing instance if server already started
   if (serverInstance) {
-    console.log('[Escalation Server] Server already running on port', port);
+    console.error('[Escalation Server] Server already running on port', port);
     return serverInstance;
   }
 
@@ -234,20 +234,20 @@ export function startEscalationServer(
 
   // Start server
   const server = app.listen(port, () => {
-    console.log(`[Escalation Server] Running on http://localhost:${port}`);
-    console.log(`[Escalation Server] Health check: http://localhost:${port}/api/health`);
-    console.log(`[Escalation Server] Dashboard: http://localhost:${port}/review-requests`);
+    console.error(`[Escalation Server] Running on http://localhost:${port}`);
+    console.error(`[Escalation Server] Health check: http://localhost:${port}/api/health`);
+    console.error(`[Escalation Server] Dashboard: http://localhost:${port}/review-requests`);
   });
 
   serverInstance = {
     start: async () => {
-      console.log('[Escalation Server] Server already started');
+      console.error('[Escalation Server] Server already started');
       return app;
     },
     stop: async () => {
       return new Promise<void>((resolve) => {
         server.close(() => {
-          console.log('[Escalation Server] Server stopped');
+          console.error('[Escalation Server] Server stopped');
           serverInstance = null;
           appInstance = null;
           resolve();
