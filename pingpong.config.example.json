@@ -2,6 +2,8 @@
   "llm": {
     "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
     "model": "default",
+    "temperature": 0.2,
+    "maxTokens": 4096,
     "timeout": 1800
   },
   "prd": {
@@ -14,7 +16,21 @@
     "retryOnLlmError": true
   },
   "escalation": {
-    "port": 3456,
+    "enabled": true,
+    "port": 3458,
     "autoOpenBrowser": true
+  },
+  "gitDiff": {
+    "enabled": true,
+    "maxSizeBytes": 102400
+  },
+  "router": {
+    "enabled": false,
+    "litellmBaseUrl": "http://localhost:4000",
+    "litellmApiKey": "sk-1234",
+    "classifierUrl": "http://127.0.0.1:8080/v1/chat/completions",
+    "fallbackModel": "best",
+    "modelListRefreshSeconds": 60,
+    "cacheMaxEntries": 200
   }
 }

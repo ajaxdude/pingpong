@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG: PingpongConfig = {
   },
   escalation: {
     enabled: true,
-    port: 3456,
+    port: 3458,
     autoOpenBrowser: true,
   },
   gitDiff: {
@@ -27,7 +27,7 @@ export const DEFAULT_CONFIG: PingpongConfig = {
     maxSizeBytes: 100 * 1024, // 100KB
   },
   router: {
-    enabled: true,
+    enabled: false,
     litellmBaseUrl: 'http://localhost:4000',
     litellmApiKey: 'sk-1234',
     classifierUrl: 'http://127.0.0.1:8080/v1/chat/completions',
@@ -66,8 +66,8 @@ export function validateConfig(config: PingpongConfig): PingpongConfig {
 
   // Validate escalation port
   if (config.escalation.port < 1024 || config.escalation.port > 65535) {
-    console.warn(`[WARN] Invalid port: ${config.escalation.port}, using default 3456`);
-    config.escalation.port = 3456;
+    console.warn(`[WARN] Invalid port: ${config.escalation.port}, using default 3458`);
+    config.escalation.port = 3458;
   }
 
   // Validate LLM endpoint URL

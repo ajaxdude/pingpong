@@ -176,7 +176,7 @@ describe('config', () => {
 
       const result = validateConfig(config);
 
-      expect(result.escalation.port).toBe(3456);
+      expect(result.escalation.port).toBe(3458);
     });
 
     it('replaces invalid port (too high) with default', () => {
@@ -187,7 +187,7 @@ describe('config', () => {
 
       const result = validateConfig(config);
 
-      expect(result.escalation.port).toBe(3456);
+      expect(result.escalation.port).toBe(3458);
     });
 
     it('validates and keeps valid endpoint URL', () => {
