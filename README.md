@@ -1,100 +1,168 @@
-# Pingpong: The Hybrid Code Review MCP for Oh-My-Pi
+# Pingpong: Automated Code Review MCP
 
-**Maximize your GitHub Copilot premium requests by utilizing a hybrid cloud and local LLM workflow.**
+Pingpong is an MCP server for [oh-my-pi](https://github.com/can1357/oh-my-pi) that gives your AI agent a local code reviewer. After completing work, the agent calls `request_review`. Pingpong sends the git diff, PRD, and task context to a local LLM (llama.cpp) which reviews the work and returns structured feedback — all within the same tool call. The agent revises and retries inside one premium cloud request. A browser-based escalation UI handles the cases the local LLM cannot resolve.
 
-This MCP server integrates seamlessly with [oh-my-pi](https://github.com/can1357/oh-my-pi) to give you an automated, iterative code review cycle. Inspired by [Copilot-Leecher](https://github.com/xiangxiaobo/Copilot-Leecher).
+Optionally, a model router selects the cheapest sufficient model for each task, routing through a LiteLLM proxy.
 
-## Why Pingpong?
-
-If you use GitHub Copilot (such as Claude 3.5 Sonnet or GPT-4o), you know how quickly you can burn through your monthly premium requests. Following up with an agent to fix a bug, review an edge case, or verify requirements uses a brand new premium request every single time.
-
-**Pingpong solves this by introducing a hybrid architecture.**
-1. Your cloud LLM writes the initial code.
-2. Instead of finishing, the cloud LLM calls the `mcp_pingpong_request_review` tool.
-3. Pingpong intercepts the workflow and sends the git diff and project PRD to a completely free, local LLM running via `llama.cpp`.
-4. The local LLM reviews the code. If it finds issues, it returns the feedback *inside the same tool call*.
-5. The cloud LLM receives the feedback and revises the code—all without burning an extra premium request!
-
-This means you can squeeze a full iterative write-review-fix cycle into the cost of a single Copilot query, saving your premium quota for the heavy lifting.
+---
 
 ## Quick Start
 
-### For Oh-My-Pi Users
+### oh-my-pi (recommended)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/ajaxdude/pingpong/master/install.sh | bash
 ```
 
-**What gets installed:**
+The installer:
+- Clones this repo into `~/.omp/skills/pingpong/`
+- Builds the TypeScript
+- Installs `node_modules` into the skill folder
+- Writes `~/.omp/agent/mcp.json` pointing at `~/.omp/skills/pingpong/dist/mcp.js`
+- Injects `templates/APPEND_SYSTEM.md` and `templates/LLAMACPP.md` into your agent config
 
-**1. Pingpong Skill** (`~/.omp/skills/pingpong/`)
-- Complete pingpong source code
-- Compiled JavaScript (dist/)
-- Node.js dependencies (node_modules/)
+After installing, create `pingpong.config.json` in each project where you want reviews (see [Configuration](#configuration)).
 
-**2. Agent Templates** (`~/.omp/agent/`)
-- `APPEND_SYSTEM.md` - Agent system prompt with review loop instructions
-- `LLAMACPP.md` - LLM configuration template for llama.cpp
-
-**3. MCP Configuration** (`~/.omp/agent/mcp.json`)
-- Adds pingpong server to existing MCP configuration
-- Points to `~/.omp/skills/pingpong/dist/mcp.js`
-
-**4. Project Config** (your current directory)
-- `pingpong.config.example.json` - Example configuration file
-
-### Manual Installation
+### Manual
 
 ```bash
-# Install
 git clone https://github.com/ajaxdude/pingpong.git
 cd pingpong
 npm install && npm run build
-
-# Configure in your project root
-cp pingpong.config.example.json pingpong.config.json
-# Edit pingpong.config.json to set your LLM endpoint if needed (default: http://127.0.0.1:8080/v1/chat/completions)
 ```
 
-## Usage
+Add to your MCP config:
 
-### For Agents
+```json
+{
+  "mcpServers": {
+    "pingpong": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/absolute/path/to/pingpong/dist/mcp.js"]
+    }
+  }
+}
+```
 
-After completing work, the agent must call `mcp_pingpong_request_review(taskId, summary, details?, conversationHistory?)`:
+---
 
-- `taskId`: format `[type]-[date]-[seq]` — e.g., `feature-20260316-001`
-- `summary`: 2-3 sentences covering what changed and why
+## How It Works
+
+1. Your agent completes a task and calls `request_review`.
+2. Pingpong creates a session and blocks until the review resolves.
+3. Pingpong reads the local `pingpong.config.json`, collects the git diff, PRD, and any `AGENTS.md`.
+4. The local LLM (llama.cpp) reviews the context and responds with a JSON verdict:
+   `{ "status": "approved" | "needs_revision" | "escalated", "feedback": "..." }`
+5. On `needs_revision`: feedback is added to session history and the loop continues (up to `maxIterations`).
+6. On `approved`: `request_review` returns the verdict to the agent immediately.
+7. On `escalated` or LLM failure: the browser UI opens at `http://localhost:3458/review-requests` for human review.
+
+The agent receives the **final resolved status** from `request_review` — never a `pending` response that requires polling.
+
+---
+
+## MCP Tools
+
+### `request_review`
+
+Submit completed work for automated review. Blocks until the review reaches a terminal state.
+
+**Input:**
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `taskId` | string | Yes | Format: `[type]-[date]-[seq]`, e.g. `feature-20260314-001` |
+| `summary` | string | Yes | 2–3 sentences: what changed, why, assumptions |
+| `details` | string | No | Additional context, edge cases, security notes |
+| `conversationHistory` | string[] | No | Prior conversation turns for context |
+
+**Return:**
+```json
+{
+  "status": "approved",
+  "feedback": "Looks good. Error handling is solid.",
+  "sessionId": "abc123",
+  "iterationCount": 2,
+  "reviewerType": "llm"
+}
+```
+
+`status` is always terminal: `approved`, `needs_revision`, or `escalated`. The agent should treat `needs_revision` as a directive to fix and re-submit.
 
 **What gets reviewed:**
-- Task summary and details
-- Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
 - Git diff (`git diff HEAD`)
-- Conversation history (if provided)
-- Built-in criteria: correctness, quality, security, performance, maintainability
+- Project PRD (auto-detected from `./docs/PRD.md`, `./PRD.md`, or `./README.md`)
+- `AGENTS.md` if present
+- Built-in criteria: correctness, security, performance, maintainability, test coverage, documentation
 
-**Review Process:**
-1. The local LLM reviews the work and returns `approved`, `needs_revision`, or `escalated`.
-2. If `needs_revision`, the cloud agent improves the code based on the local feedback and retries.
-3. After 5 iterations, Pingpong escalates to a browser UI at `http://localhost:3456`.
-4. A human reviews the code and provides feedback. Typing `"ok"`, `"approved"`, or `"lgtm"` completes the task.
+---
 
-### Connection Failure Handling
+### `get_session_list`
 
-When `llama.cpp` isn't running, Pingpong automatically:
-1. Detects connection errors (`ECONNREFUSED`, `ENOTFOUND`, `ECONNRESET`)
-2. Opens your browser with setup instructions
-3. Shows a `llama.cpp` installation and startup guide
-4. Auto-refreshes to detect when the service becomes available
+Returns all sessions (for debugging or the dashboard).
+
+```json
+{
+  "sessions": [
+    { "id": "abc123", "taskId": "feature-20260314-001", "status": "approved", "summary": "..." }
+  ]
+}
+```
+
+---
+
+### `get_session_details`
+
+Returns full detail for a session.
+
+**Input:** `sessionId` (string, required)
+
+**Return includes:** `status`, `llmFeedback`, `humanFeedback`, `escalationReason`, `iterationCount`, `reviewerType`
+
+---
+
+### `resolve_session`
+
+Manually resolve a session. Used by the web UI and for testing.
+
+**Input:** `sessionId` (string), `feedback` (string)
+
+---
+
+## Model Routing (optional)
+
+The `select_model` tool picks the cheapest sufficient model before significant LLM calls.
+
+### `select_model`
+
+**Input:** `prompt` (string, required), `context` (string, optional)
+
+**Return:**
+```json
+{ "model": "claude-sonnet-4", "cached": false, "latencyMs": 42 }
+```
+
+**How routing works:**
+1. First 500 chars of the prompt are hashed for cache lookup (200-entry LRU).
+2. On cache miss: the classifier (your local llama.cpp) picks from the live model list fetched from LiteLLM.
+3. Selection tiers: local/small → fast cloud → frontier → reasoning models.
+4. Any routing failure falls back silently to `router.fallbackModel`.
+
+Requires a running LiteLLM proxy (`router.litellmBaseUrl`). Disable with `router.enabled: false`.
+
+---
 
 ## Configuration
 
-Create `pingpong.config.json` in your project root:
+Create `pingpong.config.json` in your **project root** (not the pingpong install directory). Pingpong reads it from `process.cwd()` at startup — one config per project.
 
 ```json
 {
   "llm": {
     "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
     "model": "default",
+    "temperature": 0.2,
+    "maxTokens": 4096,
     "timeout": 1800
   },
   "prd": {
@@ -107,39 +175,180 @@ Create `pingpong.config.json` in your project root:
     "retryOnLlmError": true
   },
   "escalation": {
-    "port": 3456,
+    "enabled": true,
+    "port": 3458,
     "autoOpenBrowser": true
+  },
+  "gitDiff": {
+    "enabled": true,
+    "maxSizeBytes": 102400
+  },
+  "router": {
+    "enabled": false,
+    "litellmBaseUrl": "http://localhost:4000",
+    "litellmApiKey": "sk-1234",
+    "classifierUrl": "http://127.0.0.1:8080/v1/chat/completions",
+    "fallbackModel": "best",
+    "modelListRefreshSeconds": 60,
+    "cacheMaxEntries": 200
   }
 }
 ```
 
-**Environment Variables:**
-- `PINGPONG_LLM_ENDPOINT` - Override LLM endpoint
-- `PINGPONG_LLM_MODEL` - Override model name
-- `PINGPONG_LLM_TIMEOUT` - Override timeout (seconds)
-- `PINGPONG_PRD_PATH` - Override PRD path
+Copy `pingpong.config.example.json` as a starting point.
+
+### Key options
+
+| Option | Default | Description |
+|---|---|---|
+| `llm.endpoint` | `http://127.0.0.1:8080/v1/chat/completions` | llama.cpp endpoint for reviews |
+| `llm.timeout` | `1800` | Seconds before LLM call times out |
+| `review.maxIterations` | `5` | Max LLM passes before human escalation |
+| `escalation.enabled` | `true` | Whether to start the web UI server |
+| `escalation.port` | `3458` | Port for the web UI and HTTP API |
+| `router.enabled` | `false` | Enable model routing (requires LiteLLM) |
+
+### Environment variable overrides
+
+```bash
+PINGPONG_LLM_ENDPOINT          # Override llm.endpoint
+PINGPONG_LLM_MODEL             # Override llm.model
+PINGPONG_LLM_TIMEOUT           # Override llm.timeout (integer seconds)
+PINGPONG_PRD_PATH              # Set prd.fallbackPath
+PINGPONG_ESCALATION_PORT       # Override escalation.port
+PINGPONG_ROUTER_ENABLED        # "true" or "false"
+PINGPONG_ROUTER_FALLBACK_MODEL # Override router.fallbackModel
+```
+
+---
+
+## Web UI & HTTP API
+
+The escalation server starts automatically when `escalation.enabled` is true. If port `3458` is already in use (e.g. a prior instance), Pingpong logs a warning and continues without the web UI — stdio tool calls still work.
+
+### Pages
+
+| URL | Description |
+|---|---|
+| `http://localhost:3458/review-requests` | All review sessions — status, feedback, iteration count |
+| `http://localhost:3458/` | Model routing dashboard (if router enabled) |
+
+### HTTP API
+
+```
+GET  /api/health                    Health check
+GET  /api/sessions                  All sessions with full fields
+POST /api/sessions/:id/feedback     Submit human review feedback
+DELETE /api/sessions/:id            Delete a session
+GET  /api/routing-events            Recent routing decisions
+```
+
+Submit feedback:
+```bash
+curl -X POST http://localhost:3458/api/sessions/<sessionId>/feedback \
+  -H 'Content-Type: application/json' \
+  -d '{"feedback": "Approved — looks good."}'
+```
+
+`ok`, `lgtm`, `approved`, `looks good`, or `ship it` (case-insensitive) resolve the session as approved.
+
+---
+
+## Session Storage
+
+Sessions persist to `.pingpong/sessions/` in your **project root** (the directory where the agent runs, not the pingpong install). Each session is a JSON file named by its nanoid. Sessions older than 24 hours are purged by an hourly cleanup cron.
+
+Add `.pingpong/` to your project's `.gitignore`.
+
+---
+
+## Agent Contract
+
+Two template files govern agent behavior after install:
+
+**`~/.omp/agent/APPEND_SYSTEM.md`** — injected into the agent system prompt:
+- Agent **must** call `request_review` after completing any task
+- Agent must never claim work is done without an approved review
+- `needs_revision` feedback is a directive to fix and re-submit in the same session
+
+**`~/.omp/agent/LLAMACPP.md`** — context for the local LLM reviewer:
+- Six evaluation categories and their criteria
+- Required JSON response format
+- Edit to adjust review strictness or add project-specific rules
+
+---
+
+## Development
+
+### Build and deploy
+
+```bash
+npm run build              # Compile TypeScript to dist/
+npm test                   # Run all tests
+npm run test:unit          # Unit tests only
+npm run test:integration   # Integration tests only
+
+# Deploy to local OMP skill installation
+./scripts/sync-to-skill.sh
+```
+
+`sync-to-skill.sh` builds, then rsyncs `dist/` and `templates/` to `~/.omp/skills/pingpong/`. Restart OMP after running it.
+
+### Project layout
+
+```
+src/
+├── mcp.ts                 # MCP entry point — tool handlers, stdio transport
+├── config.ts              # Config loader, env overrides, validation
+├── types.ts               # All TypeScript types
+├── review-loop.ts         # Review iteration orchestrator
+├── llm-client.ts          # LLM HTTP client and response parser
+├── llm-prompt.ts          # Prompt assembler
+├── context-gatherer.ts    # PRD, git diff, AGENTS.md loading
+├── session-manager.ts     # Session CRUD, file persistence, cleanup cron
+├── escalation-server.ts   # Express HTTP server, all routes
+├── router.ts              # ModelRouter, LiteLLM integration, route events
+└── tools/
+    └── mcp_pingpong_select_model.ts
+
+templates/
+├── APPEND_SYSTEM.md       # Agent system prompt additions
+├── LLAMACPP.md            # Local LLM reviewer instructions
+├── escalation.html        # Human review session page
+├── review-requests.html   # Session dashboard
+├── routing-dashboard.html # Routing events dashboard
+└── setup.html             # llama.cpp setup guide
+
+scripts/
+└── sync-to-skill.sh       # Build + deploy to ~/.omp/skills/pingpong/
+```
+
+---
 
 ## Troubleshooting
 
-**LLM Connection Issues**
-```bash
-# Verify llama.cpp is running
-curl http://127.0.0.1:8080/v1/models
+**Sessions stay `pending` in the dashboard**
+The MCP tool blocks and returns the final status — if you see `pending` it means an old session from a prior (broken) version. Delete stale sessions via the dashboard or `DELETE /api/sessions/:id`.
 
-# Start llama.cpp on port 8080
-llama-server -p 8080 -m path/to/model.gguf
+**llama.cpp not connecting**
+```bash
+curl http://127.0.0.1:8080/v1/models   # verify it is running
+llama-server -p 8080 -m /path/to/model.gguf
 ```
 
-**PRD Not Detected**
-- Ensure the PRD exists at: `./docs/PRD.md`, `./PRD.md`, or `./README.md`
-- Or configure custom PRD paths in `pingpong.config.json`
+**Port 3458 already in use**
+A prior Pingpong process is still running. Kill it, or set a different `escalation.port` in config. Pingpong will log a warning and run without the web UI if the port is occupied.
 
-**TypeScript Errors**
-```bash
-# Check and rebuild
-npx tsc --noEmit
-npm run build
-```
+**PRD not detected**
+Ensure a file exists at `./docs/PRD.md`, `./PRD.md`, or `./README.md` in your project root, or set `prd.fallbackPath` in `pingpong.config.json`.
+
+**Router always falls back**
+LiteLLM is not running at `router.litellmBaseUrl`, or `router.enabled` is false. Check `router.litellmBaseUrl` in config.
+
+**MCP not appearing in tool list after restart**
+Verify `~/.omp/agent/mcp.json` points at `~/.omp/skills/pingpong/dist/mcp.js` and that file exists.
+
+---
 
 ## License
 

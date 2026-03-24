@@ -240,10 +240,11 @@ afterEach(async () => {
       const data = await response.json();
       expect(data.success).toBe(true);
       expect(data.feedback).toBe('Great work!');
+      expect(data.status).toBe('needs_revision');
 
       // Verify session was updated
       const updatedSession = sessionManager.getSession(session.id);
-      expect(updatedSession!.status).toBe('escalated');
+      expect(updatedSession!.status).toBe('needs_revision');
       expect(updatedSession!.humanFeedback).toBe('Great work!');
       expect(updatedSession!.reviewerType).toBe('human');
     });
@@ -270,7 +271,7 @@ afterEach(async () => {
 
       expect(callbackCalled).toBe(true);
       expect(callbackResult).toBeDefined();
-      expect(callbackResult.status).toBe('escalated');
+      expect(callbackResult.status).toBe('approved');
       expect(callbackResult.feedback).toBe('Approved!');
       expect(callbackResult.sessionId).toBe(session.id);
     });
@@ -295,6 +296,70 @@ afterEach(async () => {
       );
 
       consoleWarnSpy.mockRestore();
+    });
+
+    it('sets status approved when feedback is LGTM', async () => {
+      const session = sessionManager.createSession({
+        taskId: 'task-lgtm',
+        summary: 'LGTM test',
+      });
+
+      const response = await fetch(`http://localhost:${currentPort}/api/sessions/${session.id}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: 'LGTM' }),
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.status).toBe('approved');
+
+      const updated = sessionManager.getSession(session.id);
+      expect(updated!.status).toBe('approved');
+    });
+  });
+
+  describe('DELETE /api/sessions/:id', () => {
+    beforeEach(async () => {
+      currentPort = portGenerator.next().value;
+      server = startEscalationServer({
+        port: currentPort,
+        sessionManager,
+      });
+      await new Promise(resolve => setTimeout(resolve, 100));
+    });
+
+    it('deletes an existing session', async () => {
+      const session = sessionManager.createSession({
+        taskId: 'task-del-1',
+        summary: 'Delete me',
+      });
+
+      // Mark non-pending so it can be deleted
+      sessionManager.updateSession(session.id, {
+        status: 'approved',
+        reviewerType: 'llm',
+      });
+
+      const response = await fetch(`http://localhost:${currentPort}/api/sessions/${session.id}`, {
+        method: 'DELETE',
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.sessionId).toBe(session.id);
+
+      // Session should be gone
+      expect(sessionManager.getSession(session.id)).toBeNull();
+    });
+
+    it('returns 404 for non-existent session', async () => {
+      const response = await fetch(`http://localhost:${currentPort}/api/sessions/does-not-exist`, {
+        method: 'DELETE',
+      });
+
+      expect(response.status).toBe(404);
     });
   });
 

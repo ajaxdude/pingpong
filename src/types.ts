@@ -38,6 +38,8 @@ export interface ReviewSession {
   iterationCount: number;
   reviewerType?: ReviewerType;
   agentResolve?: (result: RequestReviewResult) => void;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Pingpong configuration
@@ -74,8 +76,16 @@ export interface PingpongConfig {
     contextLines?: number;
     maxSizeBytes: number;
   };
+  router: {
+    enabled: boolean;
+    litellmBaseUrl: string;
+    litellmApiKey: string;
+    classifierUrl: string;
+    fallbackModel: string;
+    modelListRefreshSeconds: number;
+    cacheMaxEntries: number;
+  };
 }
-
 
 // LLM API request structure
 export interface LLMRequest {

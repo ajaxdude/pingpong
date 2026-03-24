@@ -26,6 +26,15 @@ export const DEFAULT_CONFIG: PingpongConfig = {
     enabled: true,
     maxSizeBytes: 100 * 1024, // 100KB
   },
+  router: {
+    enabled: true,
+    litellmBaseUrl: 'http://localhost:4000',
+    litellmApiKey: 'sk-1234',
+    classifierUrl: 'http://127.0.0.1:8080/v1/chat/completions',
+    fallbackModel: 'best',
+    modelListRefreshSeconds: 60,
+    cacheMaxEntries: 200,
+  },
 };
 
 export async function loadConfig(projectRoot: string): Promise<PingpongConfig> {
@@ -98,6 +107,9 @@ export function deepMergeConfig(base: PingpongConfig, partial: Record<string, un
   if (partial.gitDiff) {
     result.gitDiff = { ...base.gitDiff, ...partial.gitDiff };
   }
+  if (partial.router) {
+    result.router = { ...base.router, ...partial.router };
+  }
 
   return result;
 }
@@ -137,6 +149,13 @@ export function applyEnvOverrides(config: PingpongConfig): PingpongConfig {
     } else {
       console.warn(`[WARN] Invalid PINGPONG_ESCALATION_PORT: ${process.env.PINGPONG_ESCALATION_PORT}, using default`);
     }
+  }
+
+  if (process.env.PINGPONG_ROUTER_ENABLED) {
+    result.router.enabled = process.env.PINGPONG_ROUTER_ENABLED === 'true';
+  }
+  if (process.env.PINGPONG_ROUTER_FALLBACK_MODEL) {
+    result.router.fallbackModel = process.env.PINGPONG_ROUTER_FALLBACK_MODEL;
   }
 
   return result;

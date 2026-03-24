@@ -3,7 +3,8 @@ import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { SessionManager } from './session-manager.js';
-import { RequestReviewResult, ReviewStatus } from './types.js';
+import { ReviewStatus } from './types.js';
+import { getRouteEvents } from './router.js';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -95,8 +96,28 @@ export function startEscalationServer(
         llmFeedback: s.llmFeedback,
         humanFeedback: s.humanFeedback,
       })),
+      count: sessions.length,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // DELETE /api/sessions/:id - Delete a session
+  app.delete('/api/sessions/:id', (req: Request, res: Response) => {
+    const { id: sessionId } = req.params;
+
+    if (!sessionManager) {
+      res.status(503).json({ error: 'Service unavailable', message: 'Session manager not available' });
+      return;
+    }
+
+    const session = sessionManager.getSession(sessionId);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found', message: `Session not found: ${sessionId}` });
+      return;
+    }
+
+    sessionManager.deleteSessionFile(sessionId);
+    res.json({ success: true, sessionId });
   });
 
   // GET /review-requests - Dashboard for all review requests
@@ -110,6 +131,29 @@ export function startEscalationServer(
       console.error('[Escalation Server] Failed to render review-requests dashboard:', err);
       res.status(500).send(createErrorHTML('Failed to load review requests dashboard'));
     }
+  });
+
+  // GET / - Routing dashboard
+  app.get('/', (_req: Request, res: Response) => {
+    try {
+      const templatePath = join(__dirname, '..', 'templates', 'routing-dashboard.html');
+      let template = readFileSync(templatePath, 'utf-8');
+      res.setHeader('Content-Type', 'text/html');
+      res.send(template);
+    } catch (err) {
+      console.error('[Escalation Server] Failed to render routing dashboard:', err);
+      res.status(500).send(createErrorHTML('Failed to load routing dashboard'));
+    }
+  });
+
+  // GET /api/routing-events - Get routing events
+  app.get('/api/routing-events', (_req: Request, res: Response) => {
+    const events = getRouteEvents();
+    res.json({
+      events,
+      total: events.length,
+      timestamp: new Date().toISOString(),
+    });
   });
 
   // GET /review/:sessionId - Render HTML template with session data
@@ -159,9 +203,16 @@ export function startEscalationServer(
         .replace(/\{\{iterationCount\}\}/g, String(session.iterationCount))
         .replace(/\{\{status\}\}/g, session.status || '')
         .replace(/\{\{llmFeedback\}\}/g, session.llmFeedback || '')
+        .replace(/\{\{humanFeedback\}\}/g, session.humanFeedback || '')
+        .replace(/\{\{createdAt\}\}/g, session.createdAt || '')
+        .replace(/\{\{updatedAt\}\}/g, session.updatedAt || '')
         .replace(/\{\{error\}\}/g, '')
         .replace(/\{\{#error\}\}[\s\S]*?\{\{\/error\}\}/g, '')
-        .replace(/\{\{\^error\}\}([\s\S]*?)\{\{\/error\}\}/g, '$1');
+        .replace(/\{\{\^error\}\}([\s\S]*?)\{\{\/error\}\}/g, '$1')
+        // Handle conditional sections by stripping Mustache tags but keeping content if value exists
+        .replace(/\{\{#llmFeedback\}\}([\s\S]*?)\{\{\/llmFeedback\}\}/g, session.llmFeedback ? '$1' : '')
+        .replace(/\{\{#humanFeedback\}\}([\s\S]*?)\{\{\/humanFeedback\}\}/g, session.humanFeedback ? '$1' : '')
+        .replace(/\{\{#status\}\}([\s\S]*?)\{\{\/status\}\}/g, session.status ? '$1' : '');
 
       res.setHeader('Content-Type', 'text/html');
       res.send(template);
@@ -174,62 +225,41 @@ export function startEscalationServer(
   // POST /api/sessions/:id/feedback - Submit feedback
   app.post('/api/sessions/:id/feedback', (req: Request, res: Response) => {
     const { id: sessionId } = req.params;
-    const { feedback } = req.body;
+    const feedback = req.body.feedback;
 
     // Validate feedback
     if (!feedback || typeof feedback !== 'string' || feedback.trim().length === 0) {
-      res.status(400).json({
-        error: 'Missing feedback',
-        message: 'Feedback is required and cannot be empty',
-      });
+      res.status(400).json({ error: 'Missing feedback', message: 'Feedback is required and cannot be empty' });
       return;
     }
 
     if (!sessionManager) {
-      res.status(503).json({
-        error: 'Service unavailable',
-        message: 'Session manager not available',
-      });
+      res.status(503).json({ error: 'Service unavailable', message: 'Session manager not available' });
       return;
     }
 
     const session = sessionManager.getSession(sessionId);
-
     if (!session) {
-      res.status(404).json({
-        error: 'Session not found',
-        message: `Session not found: ${sessionId}`,
-      });
+      res.status(404).json({ error: 'Session not found', message: `Session not found: ${sessionId}` });
       return;
     }
 
-    // Update session with human feedback
+    const trimmedFeedback = feedback.trim();
+    // Approval if feedback starts with a recognized approval signal (case-insensitive)
+    const isApproval = /^(ok|lgtm|approved|looks good|ship it)/i.test(trimmedFeedback);
+    const finalStatus: ReviewStatus = isApproval ? 'approved' : 'needs_revision';
+
+    // Update session with human feedback and correct status
     sessionManager.updateSession(sessionId, {
-      status: 'escalated' as ReviewStatus,
-      feedback: feedback.trim(),
+      status: finalStatus,
+      feedback: trimmedFeedback,
       reviewerType: 'human',
     });
 
-    // Call resolveSession callback if available
-    const callback = session.agentResolve;
-    if (!callback) {
-      console.warn('[Escalation Server] No resolve callback for session:', sessionId);
-    } else {
-      const result: RequestReviewResult = {
-        status: 'escalated' as ReviewStatus,
-        feedback: feedback.trim(),
-        sessionId: session.id,
-        iterationCount: session.iterationCount,
-        reviewerType: 'human',
-      };
-      callback(result);
-    }
+    // Fire the agentResolve callback via resolveSession
+    sessionManager.resolveSession(sessionId, trimmedFeedback);
 
-    res.json({
-      success: true,
-      sessionId,
-      feedback: feedback.trim(),
-    });
+    res.json({ success: true, sessionId, feedback: trimmedFeedback, status: finalStatus });
   });
 
   // Start server

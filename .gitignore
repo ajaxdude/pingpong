@@ -1,6 +1,49 @@
+# Build output
 node_modules/
 dist/
-*.log
-.DS_Store
+
+# Runtime session storage
+.pingpong/
+
+# User config (contains secrets/paths)
 pingpong.config.json
+pingpong.config.json.backup
+*.backup.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Scratch files generated during development sessions
+FINAL_*.md
+PINGPONG_*.md
+SKILL_WORKFLOW.md
+fix-pingpong-*.sh
+solve-pingpong-*.sh
+test-omp-connection.sh
+verify-pingpong-*.sh
+verify_pingpong_*.sh
+sync-pingpong-install.sh
+simulate-omp-connection.js
+test-complex-prompt.js
+test-default-model.js
+test-llm-request.js
+test-long-timeout.js
+test-pingpong-*.js
+test-pingpong-*.sh
+test-review-loop.js
+pingpong.config.fixed.json
+src/test-router.ts
+
+# Legacy tmp path
 /tmp/pingpong-sessions/
+
+# Dev scripts not needed by users
+scripts/call_request_review.js
+scripts/invoke_mcp_handler.mjs
+scripts/mcp-to-project.sh
+scripts/mcp-to-skill.sh
+scripts/restore-project-mcp.sh
+scripts/sync-from-skill.sh

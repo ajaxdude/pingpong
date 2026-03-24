@@ -85,6 +85,8 @@ async function handleRequestReview(
     throw new Error('Rate limit exceeded. Please try again later.');
   }
 
+  // Create exactly ONE session. The review loop operates on this same session
+  // so the ID returned to the agent is always the one being updated.
   const session = sessionManager.createSession({
     taskId: args.taskId,
     summary: args.summary,
@@ -92,36 +94,54 @@ async function handleRequestReview(
     conversationHistory: args.conversationHistory,
   });
 
-  if (reviewLoop) {
-    (async () => {
-      try {
-        const result = await reviewLoop.startReview(args.taskId, args.summary, args.details, args.conversationHistory);
-        console.error('[MCP] Review loop completed for session', session.id, result);
-        if (sessionManager) {
-          sessionManager.resolveSession(session.id, result.feedback);
-        }
-      } catch (err: any) {
-        console.error('[MCP] Review loop error for session', session.id, err);
-        if (sessionManager) {
-          sessionManager.updateSession(session.id, {
-            status: 'escalated',
-            feedback: String(err?.message || err),
-            reviewerType: 'llm',
-          });
-        }
-      }
-    })();
-  } else {
-    console.warn('[MCP] No review loop available in this process; LLM review will not run until a review loop is available');
+  if (!reviewLoop) {
+    console.warn('[MCP] No review loop available; session created but no LLM review will run');
+    return {
+      status: 'pending',
+      feedback: 'Review request submitted (no LLM backend configured)',
+      sessionId: session.id,
+      iterationCount: 0,
+      reviewerType: 'llm',
+    };
   }
 
-  return {
-    status: 'pending',
-    feedback: 'Review request submitted',
-    sessionId: session.id,
-    iterationCount: 0,
-    reviewerType: 'llm',
-  };
+  // Block until the review loop completes (approved / needs_revision / escalated).
+  // The loop updates the session in-place; we wait for its return value so we
+  // can hand back the real terminal status to the agent rather than 'pending'.
+  //
+  // Note: MCP stdio keeps the connection open while the tool call is in-flight,
+  // so long-running calls are fine. The agent sees no response until this resolves.
+  try {
+    const result = await reviewLoop.startReviewOnSession(
+      session.id,
+      args.taskId,
+      args.summary,
+      args.details,
+      args.conversationHistory
+    );
+
+    return {
+      status: result.status,
+      feedback: result.feedback,
+      sessionId: session.id,
+      iterationCount: result.iterationCount,
+      reviewerType: result.reviewerType,
+    };
+  } catch (err: any) {
+    // Loop threw — mark session escalated so dashboard shows it
+    sessionManager.updateSession(session.id, {
+      status: 'escalated',
+      feedback: String(err?.message || err),
+      reviewerType: 'llm',
+    });
+    return {
+      status: 'escalated',
+      feedback: String(err?.message || err),
+      sessionId: session.id,
+      iterationCount: 0,
+      reviewerType: 'llm',
+    };
+  }
 }
 
 async function handleGetSessionList(): Promise<{ sessions: Array<{ id: string; taskId: string; status: string; summary: string }> }> {
@@ -203,16 +223,42 @@ async function initializeComponents(): Promise<void> {
     // Start escalation server (dashboard) if enabled in config
     try {
       if (config?.escalation?.enabled) {
-        escalationServer = startEscalationServer({
-          port: config.escalation.port,
-          sessionManager: sessionManager,
-          config: config,
-          resolveSessionCallback: (sessionId: string, feedback: string) => {
-            console.log("[MCP] Escalation resolved session " + sessionId + " with feedback");
-            if (sessionManager) sessionManager.resolveSession(sessionId, feedback);
-          },
+        const port = config.escalation.port;
+        
+        // Check if port is already in use before starting to avoid unhandled errors from listen()
+        import('net').then(net => new Promise<void>(resolve => {
+          const checkServer = net.createServer();
+          try {
+            checkServer.listen(port, '127.0.0.1', () => {
+              // Port was free - we'll start the server
+              checkServer.close(() => resolve());
+              startEscalationServer({
+                port: config.escalation.port,
+                sessionManager: sessionManager,
+                config: config,
+                resolveSessionCallback: (sessionId: string, feedback: string) => {
+                  console.log("[MCP] Escalation resolved session " + sessionId + " with feedback");
+                  if (sessionManager) sessionManager.resolveSession(sessionId, feedback);
+                },
+              });
+              console.error('[INFO] Escalation server started on port ' + config.escalation.port);
+            }).on('error', (err: NodeJS.ErrnoException) => {
+              // Port is in use
+              checkServer.close(() => resolve());
+              if (err.code === 'EADDRINUSE') {
+                console.warn('[WARN] Escalation server port ' + port + ' already in use - skipping');
+              } else {
+                console.error('[MCP] Net error:', err.message);
+              }
+            });
+          } catch {}
+        })).catch(err => {
+          if (err.code === 'EADDRINUSE') {
+            console.warn('[WARN] Escalation server port ' + port + ' already in use - skipping');
+          } else {
+            console.error('[MCP] Net import failed:', err.message);
+          }
         });
-        console.error('[INFO] Escalation server started on port ' + config.escalation.port);
       }
     } catch (err: any) {
       console.warn('[WARN] Failed to start escalation server in MCP process:', err?.message || err);

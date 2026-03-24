@@ -292,7 +292,7 @@ describe('Review Flow Integration Tests', () => {
 
         // Verify results - should escalate
         expect(result.status).toBe('escalated');
-        expect(result.feedback).toContain('Failed to get LLM response');
+        expect(result.feedback).toContain('Cannot connect to LLM endpoint');
         expect(result.iterationCount).toBe(1);
 
         // Verify session was created with escalated status

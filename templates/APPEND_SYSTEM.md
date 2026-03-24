@@ -34,3 +34,10 @@ Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation
 - Automated: Up to 5 iterations with local LLM
 - After 5: Escalates to human via web UI
 - Continue improving until approved (by LLM or human)
+
+
+## Model Routing
+Before making any significant LLM request, call mcp_pingpong_select_model
+with the task prompt. Use the returned model ID for that request. Skip routing
+for: tool calls, short confirmations, and follow-up messages in an existing
+thread.

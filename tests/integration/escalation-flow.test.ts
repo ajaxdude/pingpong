@@ -92,7 +92,7 @@ describe('Escalation Flow Integration Tests', () => {
 
       // Verify session was updated
       const afterSession = sessionManager.getSession(session.id);
-      expect(afterSession?.status).toBe('escalated');
+      expect(afterSession?.status).toBe('approved');
       expect(afterSession?.humanFeedback).toBe('Approved by human reviewer');
       expect(afterSession?.reviewerType).toBe('human');
 
@@ -141,6 +141,7 @@ describe('Escalation Flow Integration Tests', () => {
       expect(callbackResult?.feedback).toBe('Approved with recommendations');
       expect(callbackResult?.iterationCount).toBe(0); // Callback is called with current session state (0 before any increments)
       expect(callbackResult?.reviewerType).toBe('human');
+      expect(callbackResult?.status).toBe('approved');
 
     }, 30000);
   });
@@ -232,11 +233,12 @@ describe('Escalation Flow Integration Tests', () => {
       expect(feedbackResponse.status).toBe(200);
       const feedbackData = await feedbackResponse.json();
       expect(feedbackData.success).toBe(true);
+      expect(feedbackData.status).toBe('needs_revision');
 
       // Verify session was updated
       const updatedSession = sessionManager.getSession(session.id);
       expect(updatedSession).toBeDefined();
-      expect(updatedSession!.status).toBe('escalated');
+      expect(updatedSession!.status).toBe('needs_revision');
       expect(updatedSession!.humanFeedback).toBe('API design approved, ready for implementation');
       expect(updatedSession!.reviewerType).toBe('human');
 

@@ -247,15 +247,15 @@ export class SessionManager {
     }
 
     // Start new cleanup interval
+    const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // Run hourly
     this.cleanupInterval = setInterval(() => {
       this.cleanup(maxAgeMs).catch(err => {
         console.error('[Session Manager] Cleanup cron failed:', err);
       });
-    }, maxAgeMs);
+    }, CLEANUP_INTERVAL_MS);
 
-    console.log('[Session Manager] Automatic cleanup cron started');
+    console.log('[Session Manager] Automatic cleanup cron started (runs hourly, deletes sessions older than ' + Math.round(maxAgeMs / 3600000) + 'h)');
   }
-
   stopCleanupCron(): void {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
@@ -283,8 +283,13 @@ export class SessionManager {
 
     const callback = sessionData.agentResolve;
     if (!callback) {
+      console.warn('[Session Manager] No resolve callback for session:', sessionId);
       return;
     }
+
+    // Clear before calling to prevent double-fire
+    sessionData.agentResolve = undefined;
+    this.sessions.set(sessionId, sessionData);
 
     const result: RequestReviewResult = {
       status: sessionData.status,
@@ -310,6 +315,8 @@ export class SessionManager {
       escalationReason: sessionData.escalationReason,
       iterationCount: sessionData.iterationCount,
       reviewerType: sessionData.reviewerType,
+      createdAt: sessionData.createdAt,
+      updatedAt: sessionData.updatedAt,
     };
     return session;
   }
