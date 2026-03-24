@@ -1,6 +1,6 @@
 {
   "name": "pingpong",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Automated code review MCP using local LLM",
   "main": "dist/index.js",
   "type": "module",
@@ -15,7 +15,12 @@
   "bin": {
     "pingpong": "./dist/mcp.js"
   },
-  "keywords": ["mcp", "llm", "code-review", "copilot"],
+  "keywords": [
+    "mcp",
+    "llm",
+    "code-review",
+    "copilot"
+  ],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
