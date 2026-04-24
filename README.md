@@ -1,6 +1,6 @@
-# ⚠️ DEPRECATED: Moved to [brainrouter](https://github.com/papa/brainrouter)
+# ⚠️ DEPRECATED: Moved to [brainrouter](https://github.com/ajaxdude/brainrouter)
 
-> **Note**: This project is now part of [brainrouter](https://github.com/papa/brainrouter). All new development, features, and bug fixes are happening there.
+> **Note**: This project is now part of [brainrouter](https://github.com/ajaxdude/brainrouter). All new development, features, and bug fixes are happening there.
 
 Pingpong is an MCP server for [oh-my-pi](https://github.com/can1357/oh-my-pi) that gives your AI agent a local code reviewer. After completing work, the agent calls `request_review`. Pingpong sends the git diff, PRD, and task context to a local LLM (llama.cpp) which reviews the work and returns structured feedback — all within the same tool call. The agent revises and retries inside one premium cloud request. A browser-based escalation UI handles the cases the local LLM cannot resolve.
 
@@ -355,3 +355,4 @@ Verify `~/.omp/agent/mcp.json` points at `~/.omp/skills/pingpong/dist/mcp.js` an
 ## License
 
 MIT
+

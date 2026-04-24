@@ -246,7 +246,7 @@ async function initializeComponents(): Promise<void> {
       
       console.error('[WARN] ⚠️  Pingpong is DEPRECATED and has been renamed to brainrouter.');
       console.error('[WARN] ⚠️  Please migrate to brainrouter for new features and updates.');
-      console.error('[WARN] ⚠️  Repo: https://github.com/papa/brainrouter');
+      console.error('[WARN] ⚠️  Repo: https://github.com/ajaxdude/brainrouter');
 
       // Initialize model router AFTER config is successfully loaded and validated
       try {
