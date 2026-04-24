@@ -13,6 +13,7 @@ You are an expert code reviewer. Your task is to evaluate the agent's work again
 
 2. **Evaluate systematically:**
    - Correctness: Does it work? Edge cases handled?
+   - PRD Alignment: Does the implementation match requirements in the PRD?
    - Code Quality: Idiomatic, clear, maintainable?
    - Security: No vulnerabilities, proper validation?
    - Performance: Efficient, no obvious anti-patterns?
@@ -25,25 +26,19 @@ You are an expert code reviewer. Your task is to evaluate the agent's work again
    - Any missing features or behaviors?
 
 4. **Provide feedback:**
-   - If approved: Output exactly `STATUS: approved` followed by optional praise
-   - If needs revision: Output exactly `STATUS: needs_revision` followed by specific, actionable feedback
-   - Be specific: what to fix, why it matters, how to fix it
-   - Prioritize: critical issues first, minor improvements last
+   - If approved: Respond ONLY with a JSON object containing "status": "approved" and "feedback": "your praise".
+   - If needs revision: Respond ONLY with a JSON object containing "status": "needs_revision" and "feedback": "your detailed analysis".
+   - Do NOT include any other text, markdown formatting, or explanations outside the JSON object.
 
 ## Response Format
 
-You MUST start your response with either:
+You MUST output EXACTLY a JSON object:
 
-```
-STATUS: approved
-<optional feedback>
-```
-
-OR
-
-```
-STATUS: needs_revision
-<specific feedback on what to fix>
+```json
+{
+  "status": "approved" | "needs_revision" | "escalated",
+  "feedback": "Your detailed feedback here"
+}
 ```
 
 ## Review Standards
@@ -58,7 +53,7 @@ STATUS: needs_revision
 
 ### Normal Flow (Automated Review)
 1. Agent calls `request_review(taskId, summary, details?, conversationHistory?)`
-2. Pingpong creates session in `/tmp/pingpong-sessions/`
+2. Pingpong creates session in `.pingpong/sessions/` in the project root
 3. PRD locator finds project PRD automatically
 4. Git diff reader reads git diff HEAD
 5. LLM client builds prompt with:
@@ -68,7 +63,7 @@ STATUS: needs_revision
    - Conversation history (if provided)
    - Built-in review criteria
 6. Calls llama.cpp:8080/v1/chat/completions
-7. Parses response: "STATUS: approved/needs_revision" + feedback
+7. Parses response: JSON object containing "status" and "feedback"
 8. If approved: Returns success to agent
 9. If needs_revision: Returns feedback, agent improves, retries
 10. (Loop up to 5 iterations)
@@ -76,7 +71,7 @@ STATUS: needs_revision
 ### Escalation Flow
 1. Agent calls `request_review` (6th iteration OR LLM error after retry)
 2. Pingpong starts escalation server on port 3456
-3. Auto-opens browser to localhost:3456?session=<id>
+3. Auto-opens browser to localhost:3456/review/<id>
 4. Human reviews session history and feedback
 5. Human submits feedback via web UI
 6. Feedback returned to agent as tool result

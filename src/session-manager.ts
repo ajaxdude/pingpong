@@ -114,6 +114,7 @@ export class SessionManager {
   }
 
   deleteSessionFile(sessionId: string): void {
+    console.error(`[Session Manager] Deleting session file for ${sessionId}`);
     try {
       const filePath = this.getSessionFilePath(sessionId);
       if (fs.existsSync(filePath)) {
@@ -169,6 +170,7 @@ export class SessionManager {
       escalationReason?: EscalationReason;
     },
   ): void {
+    console.error(`[Session Manager] Updating session ${sessionId} with:`, updates);
     const sessionData = this.sessions.get(sessionId);
     if (!sessionData) {
       return;
@@ -221,6 +223,7 @@ export class SessionManager {
   }
 
   listSessions(): ReviewSession[] {
+    this.loadSessions(); // Reload from disk to catch sessions from other processes
     return Array.from(this.sessions.values()).map((data) => this.toReviewSession(data));
   }
 
@@ -254,13 +257,13 @@ export class SessionManager {
       });
     }, CLEANUP_INTERVAL_MS);
 
-    console.log('[Session Manager] Automatic cleanup cron started (runs hourly, deletes sessions older than ' + Math.round(maxAgeMs / 3600000) + 'h)');
+    console.error('[Session Manager] Automatic cleanup cron started (runs hourly, deletes sessions older than ' + Math.round(maxAgeMs / 3600000) + 'h)');
   }
   stopCleanupCron(): void {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = undefined;
-      console.log('[Session Manager] Automatic cleanup cron stopped');
+      console.error('[Session Manager] Automatic cleanup cron stopped');
     }
   }
 
@@ -276,6 +279,7 @@ export class SessionManager {
   }
 
   resolveSession(sessionId: string, feedback: string): void {
+    console.error(`[Session Manager] Resolving session ${sessionId}`);
     const sessionData = this.sessions.get(sessionId);
     if (!sessionData) {
       return;

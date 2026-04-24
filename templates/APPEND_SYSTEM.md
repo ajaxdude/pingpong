@@ -19,7 +19,7 @@ Pingpong sends your work to a local LLM (llama.cpp:8080) for thorough evaluation
 - `STATUS: needs_revision` → read the feedback, improve your work, call `mcp_pingpong_request_review` again
 
 **Escalation to human (after 5 iterations or LLM errors):**
-- Web UI opens at `http://127.0.0.1:3456` with full session history
+- Web UI opens at `http://127.0.0.1:3456/review-requests` with full session history
 - Human reviews and provides feedback
 - `"ok"` / `"approved"` / `"lgtm"` → task complete
 - Any other feedback → improve and call `mcp_pingpong_request_review` again

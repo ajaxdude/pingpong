@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import type { PingpongConfig } from './types.js';
-import { loadConfig, DEFAULT_CONFIG } from './config.js';
+import { DEFAULT_CONFIG } from './config.js';
 
 const CLASSIFIER_SYSTEM_PROMPT = `You are a model routing assistant. You will receive a user request and a list of available LLM model IDs. Select the single most appropriate model ID for the task. Rules:
 - Prefer local/small models for: simple edits, one-liners, boilerplate, completions, renaming, formatting
@@ -65,16 +65,56 @@ export function getRouteEvents(): RouteEvent[] {
   return routeEvents.slice().reverse();
 }
 
+function findBestCodeModel(models: string[]): string | null {
+  if (!models || models.length === 0) {
+    return null;
+  }
+
+  const preferences = [
+    /codereviewer/i,
+    /coder/i,
+    /codellama/i,
+    /gemma/i,
+    /llama/i,
+    /mistral/i,
+    /mixtral/i,
+  ];
+
+  for (const pref of preferences) {
+    const found = models.find(m => pref.test(m));
+    if (found) {
+      return found;
+    }
+  }
+
+  return models[0];
+}
+
 class ModelRouter {
   private modelList: string[] = [];
   private cache: Map<string, string>;
   private config: PingpongConfig;
   private refreshInterval: NodeJS.Timeout | null = null;
 
-  constructor() {
-    this.config = DEFAULT_CONFIG;
+  constructor(config: PingpongConfig) {
+    this.config = config;
     this.cache = new Map();
-    this.initialize();
+    // Always do an initial model discovery so we have a valid model name
+    // even when the classifier router is disabled.
+    this.refreshModelList();
+    if (this.config.router.enabled) {
+      this.startRefreshInterval();
+    }
+  }
+
+  updateConfig(config: PingpongConfig) {
+    this.config = config;
+    if (this.config.router.enabled) {
+      this.startRefreshInterval();
+    } else if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
+    }
   }
 
   async initialize(): Promise<void> {
@@ -84,19 +124,32 @@ class ModelRouter {
 
   async refreshModelList(): Promise<void> {
     try {
-      const response = await fetch(
-        `${this.config.router.litellmBaseUrl}/v1/models`,
-        {
-          headers: {
-            Authorization: `Bearer ${this.config.router.litellmApiKey}`,
-          },
-        }
-      );
+      // Derive the models URL from the LLM endpoint host — works for both
+      // llama-swap (port 8080) and litellm proxies (port 4000).
+      const llmUrl = new URL(this.config.llm.endpoint);
+      const modelsUrl = `${llmUrl.protocol}//${llmUrl.host}/v1/models`;
+      const response = await fetch(modelsUrl, {
+        headers: { Authorization: `Bearer ${this.config.router.litellmApiKey}` },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) {
+        console.warn(`[Router] Model list fetch returned ${response.status}`);
+        return;
+      }
       const data = await response.json();
-      this.modelList = data.data.map((model: any) => model.id);
+      const ids: string[] = (data.data ?? []).map((m: any) => m.id);
+      if (ids.length > 0) {
+        this.modelList = ids;
+        console.error(`[Router] Discovered models: ${ids.join(', ')}`);
+      }
     } catch (error) {
       console.warn('Failed to refresh model list:', error);
     }
+  }
+
+  /** Return the best available code-review model, or null if none discovered yet. */
+  getBestModel(): string | null {
+    return findBestCodeModel(this.modelList);
   }
 
   private startRefreshInterval(): void {
@@ -133,7 +186,7 @@ class ModelRouter {
       return { model: cachedModel, cached: true, latencyMs: Date.now() - startTime, eventId: ev.id };
     }
 
-    try {
+        try {
       const response = await fetch(
         this.config.router.classifierUrl,
         {
@@ -142,7 +195,8 @@ class ModelRouter {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: this.config.llm.model,
+            model: findBestCodeModel(this.modelList) ?? this.config.llm.model,
+            n_gpu_layers: 0, // Force CPU for this small, stability-critical task
             messages: [
               {
                 role: 'system',
@@ -161,6 +215,10 @@ User prompt: ${prompt}`,
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`Classifier API error: ${response.status}`);
+      }
+
       const data = await response.json();
       const selectedModel = data.choices[0].message.content.trim();
       if (this.modelList.includes(selectedModel)) {
@@ -177,21 +235,22 @@ User prompt: ${prompt}`,
         return { model: selectedModel, cached: false, latencyMs: Date.now() - startTime, eventId: ev.id };
       }
     } catch (error) {
-      console.warn('Model selection failed:', error);
+      console.warn('Model classifier failed, using smart fallback:', error);
     }
 
     // Fallback path
     const latencyMs = Date.now() - startTime;
+    const fallbackModel = findBestCodeModel(this.modelList) ?? this.config.router.fallbackModel;
     const ev = recordRouteEvent({
       timestamp: new Date().toISOString(),
       promptExcerpt: prompt.substring(0, 200),
-      selectedModel: this.config.router.fallbackModel,
+      selectedModel: fallbackModel,
       latencyMs,
       cached: false,
       fallback: true,
       effectiveness: 'unknown',
     });
-    return { model: this.config.router.fallbackModel, cached: false, latencyMs, eventId: ev.id };
+    return { model: fallbackModel, cached: false, latencyMs, eventId: ev.id };
   }
 
   /**
@@ -216,7 +275,8 @@ User prompt: ${prompt}`,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: this.config.llm.model,
+          model: findBestCodeModel(available) ?? this.config.llm.model,
+          n_gpu_layers: 0, // Force CPU — same stability fix as primary selectModel
           messages: [
             { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
             {
@@ -227,8 +287,11 @@ User prompt: ${prompt}`,
           max_tokens: 40,
           temperature: 0,
         }),
-        signal: AbortSignal.timeout(10_000), // 10s timeout for rotation
+        signal: AbortSignal.timeout(10_000),
       });
+      if (!response.ok) {
+        throw new Error(`Classifier API error: ${response.status}`);
+      }
       const data = await response.json();
       const selected = data.choices[0].message.content.trim();
       if (available.includes(selected)) {
@@ -245,7 +308,7 @@ User prompt: ${prompt}`,
         return { model: selected, cached: false, latencyMs, eventId: ev.id };
       }
     } catch {
-      // Classifier unavailable (same endpoint that may have failed) — fall through to first available
+      // Classifier unavailable — fall through to first available
     }
 
     // Fallback: first non-excluded available model
@@ -264,4 +327,9 @@ User prompt: ${prompt}`,
   }
 }
 
-export const modelRouter = new ModelRouter();
+// The global singleton will be initialized later with the loaded config.
+export let modelRouter: ModelRouter = new ModelRouter(DEFAULT_CONFIG);
+
+export function initializeModelRouter(config: PingpongConfig) {
+  modelRouter = new ModelRouter(config);
+}

@@ -127,7 +127,7 @@ export class ReviewLoop {
         // Normal routing — uses cache
         try {
           const selection = await modelRouter.selectModel(prompt);
-          console.log(
+          console.error(
             `[INFO] Router selected model: ${selection.model}` +
             ` (cached: ${selection.cached}, latency: ${selection.latencyMs}ms)`
           );
@@ -143,10 +143,17 @@ export class ReviewLoop {
       }
     }
 
+    // Use discovered model name when available — avoids sending sentinel
+    // values like "default" or "best" that llama-swap won't recognize.
+    const discoveredModel = modelRouter.getBestModel();
+    const effectiveModel = discoveredModel ?? this.pingpongConfig.llm.model;
     return {
-      client: createLLMClient(this.pingpongConfig),
+      client: createLLMClient({
+        ...this.pingpongConfig,
+        llm: { ...this.pingpongConfig.llm, model: effectiveModel },
+      }),
       routeEventId: null,
-      selectedModel: this.pingpongConfig.llm.model,
+      selectedModel: effectiveModel,
     };
   }
 
@@ -210,7 +217,7 @@ export class ReviewLoop {
           failedModels.size < MAX_MODEL_ROTATIONS
         ) {
           failedModels.add(selectedModel);
-          console.log(
+          console.error(
             `[INFO] Model ${selectedModel} failed (${error!.type}), ` +
             `attempting rotation (${failedModels.size}/${MAX_MODEL_ROTATIONS})`
           );

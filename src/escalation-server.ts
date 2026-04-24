@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { SessionManager } from './session-manager.js';
 import { ReviewStatus } from './types.js';
 import { getRouteEvents } from './router.js';
+import mustache from 'mustache';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -176,14 +177,14 @@ export function startEscalationServer(
     if (session.escalationReason === 'connection_failed') {
       try {
         const templatePath = join(__dirname, '..', 'templates', 'setup.html');
-        let template = readFileSync(templatePath, 'utf-8');
+        const template = readFileSync(templatePath, 'utf-8');
 
         // Replace endpoint in the template
         const endpoint = process.env.PINGPONG_LLM_ENDPOINT || 'http://127.0.0.1:8080/v1/chat/completions';
-        template = template.replace(/\{\{endpoint\}\}/g, endpoint);
+        const html = mustache.render(template, { endpoint });
 
         res.setHeader('Content-Type', 'text/html');
-        res.send(template);
+        res.send(html);
       } catch (err) {
         console.error('[Escalation Server] Failed to render setup template:', err);
         res.status(500).send(createErrorHTML('Failed to load setup page. Please ensure llama.cpp is running on port 8080.'));
@@ -193,29 +194,29 @@ export function startEscalationServer(
 
     try {
       const templatePath = join(__dirname, '..', 'templates', 'escalation.html');
-      let template = readFileSync(templatePath, 'utf-8');
-
-      // Simple template rendering
-      template = template
-        .replace(/\{\{id\}\}/g, session.id)
-        .replace(/\{\{taskId\}\}/g, session.taskId)
-        .replace(/\{\{summary\}\}/g, session.summary || '')
-        .replace(/\{\{iterationCount\}\}/g, String(session.iterationCount))
-        .replace(/\{\{status\}\}/g, session.status || '')
-        .replace(/\{\{llmFeedback\}\}/g, session.llmFeedback || '')
-        .replace(/\{\{humanFeedback\}\}/g, session.humanFeedback || '')
-        .replace(/\{\{createdAt\}\}/g, session.createdAt || '')
-        .replace(/\{\{updatedAt\}\}/g, session.updatedAt || '')
-        .replace(/\{\{error\}\}/g, '')
-        .replace(/\{\{#error\}\}[\s\S]*?\{\{\/error\}\}/g, '')
-        .replace(/\{\{\^error\}\}([\s\S]*?)\{\{\/error\}\}/g, '$1')
-        // Handle conditional sections by stripping Mustache tags but keeping content if value exists
-        .replace(/\{\{#llmFeedback\}\}([\s\S]*?)\{\{\/llmFeedback\}\}/g, session.llmFeedback ? '$1' : '')
-        .replace(/\{\{#humanFeedback\}\}([\s\S]*?)\{\{\/humanFeedback\}\}/g, session.humanFeedback ? '$1' : '')
-        .replace(/\{\{#status\}\}([\s\S]*?)\{\{\/status\}\}/g, session.status ? '$1' : '');
-
+      const template = readFileSync(templatePath, 'utf-8');
+      
+      // Explicitly pick only template-required fields to avoid leaking 
+      // in-memory callbacks (agentResolve) into the view.
+      const view = {
+        id: session.id,
+        taskId: session.taskId,
+        summary: session.summary,
+        details: session.details ?? '',
+        status: session.status,
+        llmFeedback: session.llmFeedback ?? '',
+        humanFeedback: session.humanFeedback ?? '',
+        escalationReason: session.escalationReason ?? '',
+        iterationCount: session.iterationCount,
+        reviewerType: session.reviewerType ?? '',
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        error: false,
+      };
+      
+      const html = mustache.render(template, view);
       res.setHeader('Content-Type', 'text/html');
-      res.send(template);
+      res.send(html);
     } catch (err) {
       console.error('[Escalation Server] Failed to render template:', err);
       res.status(500).send(createErrorHTML('Failed to load review page'));

@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios';
 import type { PingpongConfig, LLMRequest, LLMResponse } from './types.js';
 
 interface LLMClientOptions {
+  // timeout in seconds (consistent with config.llm.timeout)
   timeout?: number;
 }
 
@@ -69,9 +70,13 @@ export type LLMClientInterface = {
 
 /**
  * Create LLM client for llama.cpp API
+ * @param config - Pingpong configuration
+ * @param options - Optional client overrides
+ * @param options.timeout - Timeout in SECONDS
  */
 export function createLLMClient(config: PingpongConfig, options: LLMClientOptions = {}): LLMClientInterface {
-  const timeout = options.timeout ?? config.llm.timeout ?? 30000;
+  // config.llm.timeout is in seconds; axios expects milliseconds
+  const timeout = (options.timeout ?? config.llm.timeout ?? 1800) * 1000;
   const endpoint = config.llm.endpoint;
   const model = config.llm.model;
 

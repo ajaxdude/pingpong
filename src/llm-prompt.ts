@@ -1,5 +1,3 @@
-import { loadPRD, loadGitDiff, loadAGENTS } from './context-gatherer.js';
-
 const MAX_SECTION_LENGTH = 25 * 1024; // 25KB per section
 
 /**

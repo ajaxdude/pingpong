@@ -11,9 +11,9 @@ import { join } from 'path';
 import { SessionManager } from './session-manager.js';
 import { loadConfig, DEFAULT_CONFIG } from './config.js';
 import { createReviewLoop } from './review-loop.js';
-import { startEscalationServer } from './escalation-server.js';
+import { startEscalationServer, stopEscalationServer } from './escalation-server.js';
+import { initializeModelRouter, modelRouter } from './router.js';
 import { RequestReviewInput, RequestReviewResult } from './types.js';
-
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -23,6 +23,45 @@ const __dirname = dirname(__filename);
 // Read version from package.json
 const packageJson = readFileSync(join(__dirname, '..', 'package.json'), 'utf-8');
 const { version } = JSON.parse(packageJson);
+
+// Signal handling for graceful shutdown
+let shutdownInProgress = false;
+
+async function setupSignalHandlers(): Promise<void> {
+  const shutdown = async (signal: string) => {
+    if (shutdownInProgress) return;
+    shutdownInProgress = true;
+    
+    console.error(`\n[INFO] Received ${signal}, starting graceful shutdown...`);
+    
+    try {
+      // Stop escalation server if started
+      await stopEscalationServer();
+      console.error('[INFO] Shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      console.error('[ERROR] Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  
+  process.on('uncaughtException', (error) => {
+    console.error('[ERROR] Uncaught exception:', error);
+    if (!shutdownInProgress) {
+      process.exit(1);
+    }
+  });
+  
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('[ERROR] Unhandled rejection at:', promise, 'reason:', reason);
+    if (!shutdownInProgress) {
+      process.exit(1);
+    }
+  });
+}
 
 // Global state
 let sessionManager: SessionManager | null = null;
@@ -204,6 +243,17 @@ async function initializeComponents(): Promise<void> {
     try {
       config = await loadConfig(projectRoot);
       console.error('[INFO] Configuration loaded successfully for MCP');
+      
+      console.error('[WARN] ⚠️  Pingpong is DEPRECATED and has been renamed to brainrouter.');
+      console.error('[WARN] ⚠️  Please migrate to brainrouter for new features and updates.');
+      console.error('[WARN] ⚠️  Repo: https://github.com/papa/brainrouter');
+
+      // Initialize model router AFTER config is successfully loaded and validated
+      try {
+        initializeModelRouter(config);
+      } catch (err: any) {
+        console.warn('[WARN] Model router initialization failed, continuing with defaults:', err?.message || err);
+      }
     } catch (err: any) {
       console.warn('[WARN] Configuration loading failed for MCP, using defaults');
       config = DEFAULT_CONFIG;
@@ -237,7 +287,8 @@ async function initializeComponents(): Promise<void> {
                 sessionManager: sessionManager,
                 config: config,
                 resolveSessionCallback: (sessionId: string, feedback: string) => {
-                  console.log("[MCP] Escalation resolved session " + sessionId + " with feedback");
+                  console.error("[MCP] Escalation resolved session " + sessionId + " with feedback");
+
                   if (sessionManager) sessionManager.resolveSession(sessionId, feedback);
                 },
               });
@@ -341,6 +392,25 @@ function setupRequestHandlers(): void {
           required: ['sessionId', 'feedback'],
         },
       },
+      {
+        name: 'mcp_pingpong_select_model',
+        description:
+          'DEPRECATED: Use brainrouter select_model instead. This tool picks the cheapest sufficient model before significant LLM calls.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: {
+              type: 'string',
+              description: 'The task prompt or description.',
+            },
+            context: {
+              type: 'string',
+              description: 'Optional extra context prepended before routing.',
+            },
+          },
+          required: ['prompt'],
+        },
+      },
     ],
   }));
 
@@ -351,6 +421,18 @@ function setupRequestHandlers(): void {
     switch (name) {
       case 'request_review': {
         const result = await handleRequestReview((args as unknown) as RequestReviewInput);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+
+      case 'mcp_pingpong_select_model': {
+        const result = await modelRouter.selectModel((args as any).prompt);
         return {
           content: [
             {
@@ -415,6 +497,9 @@ process.on('SIGINT', async () => {
 
 // Main function to start the server
 async function main(): Promise<void> {
+  // Set up signal handlers first
+  await setupSignalHandlers();
+
   // Initialize minimal components
   await initializeComponents();
   

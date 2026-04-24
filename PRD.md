@@ -545,10 +545,12 @@ pingpong/
     "@modelcontextprotocol/sdk": "^1.0.4",  // MCP server and stdio transport
     "axios": "^1.6.0",                        // LLM HTTP client
     "express": "^4.18.0",                     // Escalation web server
+    "mustache": "^4.2.0",                     // Robust template rendering
     "nanoid": "^5.0.0"                        // Session ID generation
   },
   "devDependencies": {
     "@types/express": "^4.17.0",
+    "@types/mustache": "^4.2.6",
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"

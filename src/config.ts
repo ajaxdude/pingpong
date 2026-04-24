@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG: PingpongConfig = {
   },
   escalation: {
     enabled: true,
-    port: 3458,
+    port: 3456,
     autoOpenBrowser: true,
   },
   gitDiff: {
